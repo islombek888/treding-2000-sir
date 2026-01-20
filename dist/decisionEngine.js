@@ -45,8 +45,12 @@ export class DecisionEngine {
             return null;
         }
         const finalResult = results[results.length - 1];
-        if (finalResult.totalScore >= 85 && finalResult.isSafe) {
+        if (finalResult.totalScore >= 80 && finalResult.isSafe) {
+            console.log(`[Decision] ✅ Signal APPROVED for ${symbol} with confidence ${finalResult.totalScore}%`);
             return finalResult;
+        }
+        if (finalResult.totalScore > 0) {
+            console.log(`[Decision] ❌ Signal REJECTED for ${symbol} (Score: ${finalResult.totalScore}%, Safety: ${finalResult.isSafe})`);
         }
         return null;
     }

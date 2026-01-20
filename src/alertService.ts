@@ -29,10 +29,30 @@ export class AlertService {
 
             this.bot.onText(/\/start/, (msg) => {
                 const chatId = msg.chat.id;
+                const symbols = [
+                    'XAUUSD (Oltin)', 'EURUSD', 'GBPUSD', 'USDCHF',
+                    'USDJPY', 'USDCNH', 'USDRUB', 'AUDUSD',
+                    'NZDUSD', 'USDCAD', 'BTCUSDT (Bitcoin)', 'ETHUSDT (Ethereum)'
+                ];
+
+                const welcomeMessage = `
+🚀 *PRO MAX Autonomous Bot ishga tushdi!*
+
+Men quyidagi aktivlarni 24/7 rejimida juda tez va aniq analiz qilaman:
+${symbols.map(s => `• ${s}`).join('\n')}
+
+📈 *Nima olasiz?*
+- 80%+ aniqlikdagi signallar
+- Minimal 8 pips yurish ehtimoli
+- Real-vaqtda bozor strukturasi tahlili
+
+Endi sizga barcha yuqori ehtimolli signallar yuboriladi. Signallarni kuting!
+                `;
+
                 if (!this.subscribers.has(chatId)) {
                     this.subscribers.add(chatId);
                     this.saveSubscribers();
-                    this.bot?.sendMessage(chatId, "🚀 XAUUSD PRO MAX Bot ishga tushdi! Endi sizga barcha yuqori ehtimolli signallar yuboriladi. 24/7 kuzatuv yoqildi.");
+                    this.bot?.sendMessage(chatId, welcomeMessage, { parse_mode: 'Markdown' });
                 } else {
                     this.bot?.sendMessage(chatId, "✅ Siz allaqachon obuna bo'lgansiz. Signallarni kuting!");
                 }
@@ -77,7 +97,7 @@ export class AlertService {
 📝 *Reason:* 
 ${signal.reason.map(r => `• ${r}`).join('\n')}
 
-⚠️ Accuracy > Frequency. Faqat 85%+ confluencelar ko'rsatiladi. 20+ pips kutilmoqda.
+⚠️ Accuracy > Frequency. Faqat 85%+ confluencelar ko'rsatiladi. 8+ pips kutilmoqda.
         `;
 
         console.log(message);

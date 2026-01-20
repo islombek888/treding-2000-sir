@@ -91,8 +91,8 @@ async function main() {
                     pips = Math.round(Math.abs(lastClose - prevClose) * 10000);
                 }
 
-                // Minimum 20 pips requirement as requested
-                if (pips >= 20) {
+                // Minimum 8 pips requirement as requested
+                if (pips >= 8) {
                     alertService.sendSignal({
                         symbol,
                         direction: lastClose > prevClose ? 'BUY' : 'SELL',
