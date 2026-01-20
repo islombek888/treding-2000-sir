@@ -1,0 +1,1 @@
+{"version":3,"file":"newsAnalyzer.d.ts","sourceRoot":"","sources":["../src/newsAnalyzer.ts"],"names":[],"mappings":"AAAA,qBAAa,YAAY;IACrB;;;OAGG;IACH,MAAM,CAAC,aAAa,IAAI;QAAE,MAAM,EAAE,MAAM,GAAG,OAAO,GAAG,OAAO,CAAC;QAAC,MAAM,EAAE,MAAM,EAAE,CAAA;KAAE;CAiBnF"}
