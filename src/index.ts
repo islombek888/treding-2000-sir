@@ -25,7 +25,7 @@ async function main() {
     });
 
     // Initial state for simulation per symbol
-    const symbolStates = new Map<string, { price: number }>();
+    const symbolStates = new Map<string, { price: number; trend: number; trendDuration: number }>();
     symbols.forEach(s => {
         let startPrice = 1.0;
         if (s === 'XAUUSD') startPrice = 2050.0;
@@ -34,14 +34,15 @@ async function main() {
         else if (s === 'ETHUSDT') startPrice = 2500.0;
         else if (s === 'USDRUB') startPrice = 90.0;
 
-        symbolStates.set(s, { price: startPrice });
+        symbolStates.set(s, { price: startPrice, trend: 0, trendDuration: 0 });
 
-        // Seed with 250 candles
+        // Seed with 300 candles of a slight trend to ensure EMA 200 is useful
         let price = startPrice;
-        for (let i = 0; i < 250; i++) {
-            price += (Math.random() - 0.5) * (startPrice * 0.001);
+        const trendBias = (Math.random() - 0.5) * 0.0001;
+        for (let i = 0; i < 300; i++) {
+            price += (Math.random() - 0.5) * (startPrice * 0.0005) + (startPrice * trendBias);
             dataService.addCandle(s, '1m', {
-                timestamp: Date.now() - (250 - i) * 60000,
+                timestamp: Date.now() - (300 - i) * 60000,
                 open: price,
                 high: price + (startPrice * 0.0005),
                 low: price - (startPrice * 0.0005),
@@ -56,19 +57,28 @@ async function main() {
     setInterval(async () => {
         for (const symbol of symbols) {
             const state = symbolStates.get(symbol)!;
-            const startPrice = (symbol === 'XAUUSD' ? 2050 : 1.0); // reference for move size
+            const startPrice = (symbol === 'XAUUSD' ? 2050 : (symbol.includes('USDT') ? 1000 : 1.0));
 
-            // Simulating price movement
-            const move = (Math.random() > 0.98) ? (startPrice * 0.005) : (Math.random() - 0.5) * (startPrice * 0.0005);
+            // SMART TREND SIMULATION
+            if (state.trendDuration <= 0) {
+                // Change trend every 20-50 iterations
+                state.trend = (Math.random() > 0.5 ? 1 : -1) * (Math.random() * 0.002);
+                state.trendDuration = 20 + Math.floor(Math.random() * 30);
+            }
+
+            const volatility = (Math.random() > 0.9) ? 2.5 : 1.0; // Random volatility spike
+            const move = (state.trend * startPrice * volatility) + (Math.random() - 0.5) * (startPrice * 0.0005);
+
             state.price += move;
+            state.trendDuration--;
 
             dataService.addCandle(symbol, '1m', {
                 timestamp: Date.now(),
                 open: state.price - move,
-                high: state.price + (startPrice * 0.0002),
-                low: state.price - (startPrice * 0.0002),
+                high: state.price + (startPrice * 0.001 * volatility),
+                low: state.price - (startPrice * 0.001 * volatility),
                 close: state.price,
-                volume: 1500
+                volume: 2000
             });
 
             // Run the decision engine

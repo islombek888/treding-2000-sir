@@ -27,7 +27,7 @@ Men quyidagi aktivlarni 24/7 rejimida juda tez va aniq analiz qilaman:
 ${symbols.map(s => `• ${s}`).join('\n')}
 
 📈 *Nima olasiz?*
-- 80%+ aniqlikdagi signallar
+- 75%+ aniqlikdagi signallar
 - Minimal 8 pips yurish ehtimoli
 - Real-vaqtda bozor strukturasi tahlili
 

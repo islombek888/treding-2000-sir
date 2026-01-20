@@ -52,7 +52,7 @@ export class DecisionEngine {
         }
 
         const finalResult = results[results.length - 1]!;
-        if (finalResult.totalScore >= 80 && finalResult.isSafe) {
+        if (finalResult.totalScore >= 65 && finalResult.isSafe) {
             console.log(`[Decision] ✅ Signal APPROVED for ${symbol} with confidence ${finalResult.totalScore}%`);
             return finalResult;
         }
