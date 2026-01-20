@@ -11,7 +11,9 @@ export declare class AlertService {
     private bot;
     private subscribers;
     private subscribersFilePath;
+    private BUTTONS;
     private constructor();
+    private showMenu;
     static getInstance(): AlertService;
     private loadSubscribers;
     private saveSubscribers;

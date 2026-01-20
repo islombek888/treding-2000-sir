@@ -11,7 +11,7 @@ export class DecisionEngine {
      */
     static async decide(dataService, symbol) {
         const results = [];
-        const iterations = 15;
+        const iterations = 20;
         for (let i = 0; i < iterations; i++) {
             const candles = dataService.getCandles(symbol, '1m'); // Using 1m for entry precision
             if (candles.length < 200)
@@ -32,25 +32,22 @@ export class DecisionEngine {
                 news
             });
             results.push(prob);
-            // Artificial delay to simulate real-time iterative re-check if needed,
-            // or just to vary the "sampling" slightly if prices are shifting.
             if (i < iterations - 1)
-                await new Promise(res => setTimeout(res, 50));
+                await new Promise(res => setTimeout(res, 30));
         }
-        // CONSENSUS CHECK: If results vary wildly, cancel.
         const avgScore = results.reduce((a, b) => a + b.totalScore, 0) / iterations;
-        const variance = results.filter(r => Math.abs(r.totalScore - avgScore) > 10).length;
-        if (variance > 3) {
-            console.log(`[Decision] Inconsistent results (variance: ${variance}). Cancelling signal.`);
+        const variance = results.filter(r => Math.abs(r.totalScore - avgScore) > 8).length;
+        if (variance > 4) {
+            console.log(`[Institutional Decision] Inconsistent results (variance: ${variance}). Cancelling signal.`);
             return null;
         }
         const finalResult = results[results.length - 1];
-        if (finalResult.totalScore >= 65 && finalResult.isSafe) {
-            console.log(`[Decision] ✅ Signal APPROVED for ${symbol} with confidence ${finalResult.totalScore}%`);
+        if (finalResult.totalScore >= 85 && finalResult.isSafe) {
+            console.log(`[Institutional Decision] ✅ ULTRA SIGNAL APPROVED for ${symbol} with confidence ${finalResult.totalScore}%`);
             return finalResult;
         }
         if (finalResult.totalScore > 0) {
-            console.log(`[Decision] ❌ Signal REJECTED for ${symbol} (Score: ${finalResult.totalScore}%, Safety: ${finalResult.isSafe})`);
+            console.log(`[Institutional Decision] ❌ Signal REJECTED for ${symbol} (Score: ${finalResult.totalScore}%, Safety: ${finalResult.isSafe})`);
         }
         return null;
     }

@@ -55,23 +55,23 @@ async function main() {
         for (const symbol of symbols) {
             const state = symbolStates.get(symbol);
             const startPrice = (symbol === 'XAUUSD' ? 2050 : (symbol.includes('USDT') ? 1000 : 1.0));
-            // SMART TREND SIMULATION
+            // INTENSE TREND SIMULATION FOR INSTITUTIONAL SIGNALS
             if (state.trendDuration <= 0) {
-                // Change trend every 20-50 iterations
-                state.trend = (Math.random() > 0.5 ? 1 : -1) * (Math.random() * 0.002);
-                state.trendDuration = 20 + Math.floor(Math.random() * 30);
+                const dir = Math.random() > 0.5 ? 1 : -1;
+                state.trend = dir * (Math.random() * 0.003 + 0.001);
+                state.trendDuration = 30 + Math.floor(Math.random() * 50);
             }
-            const volatility = (Math.random() > 0.9) ? 2.5 : 1.0; // Random volatility spike
-            const move = (state.trend * startPrice * volatility) + (Math.random() - 0.5) * (startPrice * 0.0005);
+            const volatility = (Math.random() > 0.95) ? 3.5 : 1.2;
+            const move = (state.trend * startPrice * volatility) + (Math.random() - 0.5) * (startPrice * 0.0003);
             state.price += move;
             state.trendDuration--;
             dataService.addCandle(symbol, '1m', {
                 timestamp: Date.now(),
                 open: state.price - move,
-                high: state.price + (startPrice * 0.001 * volatility),
-                low: state.price - (startPrice * 0.001 * volatility),
+                high: state.price + (Math.abs(move) * 0.5),
+                low: state.price - (Math.abs(move) * 0.5),
                 close: state.price,
-                volume: 2000
+                volume: 5000
             });
             // Run the decision engine
             const decision = await DecisionEngine.decide(dataService, symbol);
@@ -93,8 +93,8 @@ async function main() {
                 else {
                     pips = Math.round(Math.abs(lastClose - prevClose) * 10000);
                 }
-                // Minimum 15 pips requirement as requested
-                if (pips >= 15) {
+                // ULTRA ACCURACY: 50+ pips requirement
+                if (pips >= 50) {
                     alertService.sendSignal({
                         symbol,
                         direction: lastClose > prevClose ? 'BUY' : 'SELL',

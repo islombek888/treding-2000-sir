@@ -17,8 +17,16 @@ export interface SignalData {
 export class AlertService {
     private static instance: AlertService | null = null;
     private bot: TelegramBot | null = null;
-    private subscribers: Set<number> = new Set();
+    private subscribers: Map<number, string> = new Map(); // chatId -> preference
     private subscribersFilePath = path.resolve(process.cwd(), 'subscribers.json');
+
+    // Button Labels
+    private BUTTONS = {
+        STANDARD: '📊 50+ / 70 Pips',
+        ULTRA: '🔥 Juda kuchli (200+ Pips)',
+        XAUUSD: '🏆 Faqat XAUUSD',
+        ALL: '🌐 Barcha signallar'
+    };
 
     private constructor() {
         const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -26,60 +34,59 @@ export class AlertService {
 
         if (token) {
             this.bot = new TelegramBot(token, {
-                polling: {
-                    interval: 1000,
-                    autoStart: true
-                }
+                polling: { interval: 1000, autoStart: true }
             });
-            console.log("🤖 Telegram Bot initialized.");
 
             this.bot.on('polling_error', (error) => {
-                console.error('Telegram polling error:', error.message);
-                if (error.message.includes('409 Conflict')) {
-                    console.warn('⚠️ Bot conflict detected. Stopping polling to prevent conflicts.');
-                    this.bot?.stopPolling();
-                }
+                if (error.message.includes('409 Conflict')) this.bot?.stopPolling();
             });
 
             this.bot.onText(/\/start/, (msg) => {
                 const chatId = msg.chat.id;
-                const symbols = [
-                    'XAUUSD (Oltin)', 'EURUSD', 'GBPUSD', 'USDCHF',
-                    'USDJPY', 'USDCNH', 'USDRUB', 'AUDUSD',
-                    'NZDUSD', 'USDCAD', 'BTCUSDT (Bitcoin)', 'ETHUSDT (Ethereum)'
-                ];
-
-                const welcomeMessage = `
-🚀 *Autonomous Trading Bot ishga tushdi!*
-
-Men quyidagi aktivlarni 24/7 rejimida juda tez va aniq analiz qilaman:
-${symbols.map(s => `• ${s}`).join('\n')}
-
-📈 *Nima olasiz?*
-- 75%+ aniqlikdagi signallar
-- Minimal 15 pips yurish ehtimoli
-- Real-vaqtda bozor strukturasi tahlili
-
-Endi sizga barcha yuqori ehtimolli signallar yuboriladi. Signallarni kuting!
-                `;
-
+                this.showMenu(chatId, `🚀 *Institutional Grade Botga xush kelibsiz!* \n\nPastdagi tugmalar orqali o'zingizga mos signal turini tanlang:`);
                 if (!this.subscribers.has(chatId)) {
-                    this.subscribers.add(chatId);
+                    this.subscribers.set(chatId, 'ALL');
                     this.saveSubscribers();
-                    this.bot?.sendMessage(chatId, welcomeMessage, { parse_mode: 'Markdown' });
-                } else {
-                    this.bot?.sendMessage(chatId, "✅ Siz allaqachon obuna bo'lgansiz. Signallarni kuting!");
                 }
             });
-        } else {
-            console.warn("⚠️ TELEGRAM_BOT_TOKEN topilmadi, xabarlar faqat konsolga chiqadi.");
+
+            this.bot.on('message', (msg) => {
+                const chatId = msg.chat.id;
+                const text = msg.text;
+
+                if (text === this.BUTTONS.STANDARD) {
+                    this.subscribers.set(chatId, 'STANDARD');
+                    this.bot?.sendMessage(chatId, "✅ Sozlandi: Endi sizga *50+ pips*lik barcha signallar yuboriladi.", { parse_mode: 'Markdown' });
+                } else if (text === this.BUTTONS.ULTRA) {
+                    this.subscribers.set(chatId, 'ULTRA');
+                    this.bot?.sendMessage(chatId, "✅ Sozlandi: Endi sizga faqat *200+ pips*lik o'ta kuchli signallar yuboriladi.", { parse_mode: 'Markdown' });
+                } else if (text === this.BUTTONS.XAUUSD) {
+                    this.subscribers.set(chatId, 'XAUUSD');
+                    this.bot?.sendMessage(chatId, "✅ Sozlandi: Endi sizga faqat *XAUUSD (Oltin)* signallari yuboriladi.", { parse_mode: 'Markdown' });
+                } else if (text === this.BUTTONS.ALL) {
+                    this.subscribers.set(chatId, 'ALL');
+                    this.bot?.sendMessage(chatId, "✅ Sozlandi: Hamma turdagi signallar yuboriladi.", { parse_mode: 'Markdown' });
+                }
+                this.saveSubscribers();
+            });
         }
     }
 
+    private showMenu(chatId: number, text: string) {
+        this.bot?.sendMessage(chatId, text, {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                keyboard: [
+                    [{ text: this.BUTTONS.STANDARD }, { text: this.BUTTONS.ULTRA }],
+                    [{ text: this.BUTTONS.XAUUSD }, { text: this.BUTTONS.ALL }]
+                ],
+                resize_keyboard: true
+            }
+        });
+    }
+
     public static getInstance(): AlertService {
-        if (!AlertService.instance) {
-            AlertService.instance = new AlertService();
-        }
+        if (!AlertService.instance) AlertService.instance = new AlertService();
         return AlertService.instance;
     }
 
@@ -87,27 +94,26 @@ Endi sizga barcha yuqori ehtimolli signallar yuboriladi. Signallarni kuting!
         try {
             if (fs.existsSync(this.subscribersFilePath)) {
                 const data = fs.readFileSync(this.subscribersFilePath, 'utf-8');
-                const list = JSON.parse(data);
-                this.subscribers = new Set(list);
-                console.log(`📊 Obunachilar yuklandi: ${this.subscribers.size} ta`);
+                const obj = JSON.parse(data);
+                this.subscribers = new Map(Object.entries(obj).map(([id, pref]) => [Number(id), String(pref)]));
             }
         } catch (error) {
-            console.error("❌ Obunachilarni yuklashda xato:", error);
+            console.error("❌ Subscribers load error:", error);
         }
     }
 
     private saveSubscribers() {
         try {
-            const list = Array.from(this.subscribers);
-            fs.writeFileSync(this.subscribersFilePath, JSON.stringify(list, null, 2));
+            const obj = Object.fromEntries(this.subscribers);
+            fs.writeFileSync(this.subscribersFilePath, JSON.stringify(obj, null, 2));
         } catch (error) {
-            console.error("❌ Obunachilarni saqlashda xato:", error);
+            console.error("❌ Subscribers save error:", error);
         }
     }
 
     public async sendSignal(signal: SignalData) {
         const message = `
-🚨 *${signal.symbol} SIGNAL* 💰
+💎 *${signal.symbol} ULTRA SIGNAL* 🚀
 
 📍 *Direction:* ${signal.direction === 'BUY' ? '🟢 BUY' : '🔴 SELL'}
 📊 *Entry Price:* ${signal.price.toFixed(5)}
@@ -118,22 +124,27 @@ Endi sizga barcha yuqori ehtimolli signallar yuboriladi. Signallarni kuting!
 📝 *Reason:* 
 ${signal.reason.map(r => `• ${r}`).join('\n')}
 
-⚠️ Accuracy > Frequency. Faqat 75%+ confluencelar ko'rsatiladi. 15+ pips kutilmoqda.
+🛡️ Institutional Accuracy. Faqat 85%+ confluencelar ko'rsatiladi.
         `;
 
-        console.log(message);
-
         if (this.bot && this.subscribers.size > 0) {
-            for (const chatId of this.subscribers) {
-                try {
-                    await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
-                } catch (error: any) {
-                    if (error.response?.statusCode === 403) {
-                        // User blocked the bot, remove them
-                        this.subscribers.delete(chatId);
-                        this.saveSubscribers();
+            for (const [chatId, pref] of this.subscribers.entries()) {
+                // Filter Logic
+                let shouldSend = false;
+                if (pref === 'ALL') shouldSend = true;
+                else if (pref === 'XAUUSD' && signal.symbol === 'XAUUSD') shouldSend = true;
+                else if (pref === 'ULTRA' && signal.pips >= 200) shouldSend = true;
+                else if (pref === 'STANDARD' && signal.pips >= 50) shouldSend = true;
+
+                if (shouldSend) {
+                    try {
+                        await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+                    } catch (error: any) {
+                        if (error.response?.statusCode === 403) {
+                            this.subscribers.delete(chatId);
+                            this.saveSubscribers();
+                        }
                     }
-                    console.error(`❌ ${chatId} ga yuborishda xato:`, error.message);
                 }
             }
         }
