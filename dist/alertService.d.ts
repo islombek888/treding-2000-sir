@@ -7,10 +7,12 @@ export interface SignalData {
     reason: string[];
 }
 export declare class AlertService {
+    private static instance;
     private bot;
     private subscribers;
     private subscribersFilePath;
-    constructor();
+    private constructor();
+    static getInstance(): AlertService;
     private loadSubscribers;
     private saveSubscribers;
     sendSignal(signal: SignalData): Promise<void>;

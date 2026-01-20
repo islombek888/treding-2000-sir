@@ -4,7 +4,7 @@ import { AlertService } from './alertService.js';
 import http from 'http';
 async function main() {
     const dataService = new MarketDataService();
-    const alertService = new AlertService();
+    const alertService = AlertService.getInstance();
     const symbols = [
         'XAUUSD', 'EURUSD', 'GBPUSD', 'USDCHF',
         'USDJPY', 'USDCNH', 'USDRUB', 'AUDUSD',
@@ -93,8 +93,8 @@ async function main() {
                 else {
                     pips = Math.round(Math.abs(lastClose - prevClose) * 10000);
                 }
-                // Minimum 8 pips requirement as requested
-                if (pips >= 8) {
+                // Minimum 15 pips requirement as requested
+                if (pips >= 15) {
                     alertService.sendSignal({
                         symbol,
                         direction: lastClose > prevClose ? 'BUY' : 'SELL',

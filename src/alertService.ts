@@ -15,17 +15,31 @@ export interface SignalData {
 }
 
 export class AlertService {
+    private static instance: AlertService | null = null;
     private bot: TelegramBot | null = null;
     private subscribers: Set<number> = new Set();
     private subscribersFilePath = path.resolve(process.cwd(), 'subscribers.json');
 
-    constructor() {
+    private constructor() {
         const token = process.env.TELEGRAM_BOT_TOKEN;
         this.loadSubscribers();
 
         if (token) {
-            this.bot = new TelegramBot(token, { polling: true });
+            this.bot = new TelegramBot(token, {
+                polling: {
+                    interval: 1000,
+                    autoStart: true
+                }
+            });
             console.log("🤖 Telegram Bot initialized.");
+
+            this.bot.on('polling_error', (error) => {
+                console.error('Telegram polling error:', error.message);
+                if (error.message.includes('409 Conflict')) {
+                    console.warn('⚠️ Bot conflict detected. Stopping polling to prevent conflicts.');
+                    this.bot?.stopPolling();
+                }
+            });
 
             this.bot.onText(/\/start/, (msg) => {
                 const chatId = msg.chat.id;
@@ -36,14 +50,14 @@ export class AlertService {
                 ];
 
                 const welcomeMessage = `
-🚀 *PRO MAX Autonomous Bot ishga tushdi!*
+🚀 *Autonomous Trading Bot ishga tushdi!*
 
 Men quyidagi aktivlarni 24/7 rejimida juda tez va aniq analiz qilaman:
 ${symbols.map(s => `• ${s}`).join('\n')}
 
 📈 *Nima olasiz?*
 - 75%+ aniqlikdagi signallar
-- Minimal 8 pips yurish ehtimoli
+- Minimal 15 pips yurish ehtimoli
 - Real-vaqtda bozor strukturasi tahlili
 
 Endi sizga barcha yuqori ehtimolli signallar yuboriladi. Signallarni kuting!
@@ -60,6 +74,13 @@ Endi sizga barcha yuqori ehtimolli signallar yuboriladi. Signallarni kuting!
         } else {
             console.warn("⚠️ TELEGRAM_BOT_TOKEN topilmadi, xabarlar faqat konsolga chiqadi.");
         }
+    }
+
+    public static getInstance(): AlertService {
+        if (!AlertService.instance) {
+            AlertService.instance = new AlertService();
+        }
+        return AlertService.instance;
     }
 
     private loadSubscribers() {
@@ -86,7 +107,7 @@ Endi sizga barcha yuqori ehtimolli signallar yuboriladi. Signallarni kuting!
 
     public async sendSignal(signal: SignalData) {
         const message = `
-🚨 *PRO MAX ${signal.symbol} SIGNAL* 💰
+🚨 *${signal.symbol} SIGNAL* 💰
 
 📍 *Direction:* ${signal.direction === 'BUY' ? '🟢 BUY' : '🔴 SELL'}
 📊 *Entry Price:* ${signal.price.toFixed(5)}
@@ -97,7 +118,7 @@ Endi sizga barcha yuqori ehtimolli signallar yuboriladi. Signallarni kuting!
 📝 *Reason:* 
 ${signal.reason.map(r => `• ${r}`).join('\n')}
 
-⚠️ Accuracy > Frequency. Faqat 85%+ confluencelar ko'rsatiladi. 8+ pips kutilmoqda.
+⚠️ Accuracy > Frequency. Faqat 75%+ confluencelar ko'rsatiladi. 15+ pips kutilmoqda.
         `;
 
         console.log(message);
