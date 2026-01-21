@@ -1,42 +1,56 @@
 import { createCanvas } from 'canvas';
 import {} from './marketDataService.js';
 export class ChartRenderer {
-    width = 1200;
-    height = 800;
-    padding = 50;
+    width = 1000;
+    height = 600;
+    padding = 60;
+    priceColumnWidth = 80;
     async render(symbol, candles, projected, annotations) {
         const canvas = createCanvas(this.width, this.height);
         const ctx = canvas.getContext('2d');
-        // 1. Background
-        ctx.fillStyle = '#131722';
+        // 1. Background (Dark Theme)
+        ctx.fillStyle = '#0b0e14';
         ctx.fillRect(0, 0, this.width, this.height);
         if (candles.length === 0)
             return canvas.toBuffer('image/png');
         // 2. Scaling
-        const prices = candles.map(c => c.close);
-        const minPrice = Math.min(...candles.map(c => c.low)) * 0.9995;
-        const maxPrice = Math.max(...candles.map(c => c.high)) * 1.0005;
+        const visibleCandles = candles.slice(-12);
+        const minPrice = Math.min(...visibleCandles.map(c => c.low)) * 0.9998;
+        const maxPrice = Math.max(...visibleCandles.map(c => c.high)) * 1.0002;
         const priceRange = maxPrice - minPrice;
         const getY = (price) => this.height - this.padding - ((price - minPrice) / priceRange) * (this.height - 2 * this.padding);
-        const candleWidth = (this.width - 2 * this.padding) / candles.length;
+        const chartWidth = this.width - this.padding - this.priceColumnWidth;
+        const candleWidth = chartWidth / visibleCandles.length;
         const getX = (index) => this.padding + index * candleWidth + candleWidth / 2;
-        // 3. Grid
-        ctx.strokeStyle = '#2b2b2b';
+        // 3. Grid Lines & Price Labels
+        ctx.strokeStyle = '#1e222d';
         ctx.lineWidth = 1;
-        for (let i = 0; i < 5; i++) {
-            const y = this.padding + (i * (this.height - 2 * this.padding)) / 4;
+        ctx.font = '12px "Inter", Arial';
+        ctx.fillStyle = '#787b86';
+        for (let i = 0; i <= 5; i++) {
+            const y = this.padding + (i * (this.height - 2 * this.padding)) / 5;
+            const price = maxPrice - (i * priceRange) / 5;
             ctx.beginPath();
             ctx.moveTo(this.padding, y);
-            ctx.lineTo(this.width - this.padding, y);
+            ctx.lineTo(this.width - this.priceColumnWidth, y);
             ctx.stroke();
+            ctx.fillText(price.toFixed(symbol === 'EURUSD' ? 5 : 2), this.width - this.priceColumnWidth + 5, y + 4);
         }
-        // 4. Candles
-        candles.forEach((c, i) => {
+        // 4. Timeframe / Symbol Header
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 24px Arial';
+        ctx.fillText(`${symbol} 5M`, this.padding, this.padding - 20);
+        ctx.font = '14px Arial';
+        ctx.fillStyle = '#2962ff';
+        ctx.fillText('INSTITUTIONAL PRECISION ENGINE', this.padding, this.padding - 45);
+        // 5. Professional Candles (Hollow/Solid)
+        visibleCandles.forEach((c, i) => {
             const x = getX(i);
             const isUp = c.close >= c.open;
-            ctx.strokeStyle = isUp ? '#26a69a' : '#ef5350';
-            ctx.fillStyle = isUp ? '#26a69a' : '#ef5350';
-            ctx.lineWidth = 1;
+            const color = isUp ? '#089981' : '#f23645';
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 1.5;
             // Wick
             ctx.beginPath();
             ctx.moveTo(x, getY(c.high));
@@ -45,81 +59,66 @@ export class ChartRenderer {
             // Body
             const bodyTop = getY(Math.max(c.open, c.close));
             const bodyBottom = getY(Math.min(c.open, c.close));
-            ctx.fillRect(x - candleWidth * 0.35, bodyTop, candleWidth * 0.7, Math.max(1, bodyBottom - bodyTop));
+            const bodyHeight = Math.max(1.5, bodyBottom - bodyTop);
+            if (isUp) {
+                // Hollow candle for bullish
+                ctx.strokeRect(x - candleWidth * 0.3, bodyTop, candleWidth * 0.6, bodyHeight);
+            }
+            else {
+                ctx.fillRect(x - candleWidth * 0.3, bodyTop, candleWidth * 0.6, bodyHeight);
+            }
         });
-        // 5. Annotations (Step 5 - On-Chart Explanation)
+        // 6. Annotations
         if (annotations) {
-            ctx.font = 'bold 12px Arial';
-            ctx.fillStyle = '#d1d4dc';
             if (annotations.bos) {
                 const y = getY(annotations.bos.price);
-                ctx.strokeStyle = '#bbbbbb';
-                ctx.setLineDash([5, 5]);
+                ctx.setLineDash([6, 4]);
+                ctx.strokeStyle = '#2962ff';
                 ctx.beginPath();
                 ctx.moveTo(this.padding, y);
-                ctx.lineTo(this.width - this.padding, y);
+                ctx.lineTo(this.width - this.priceColumnWidth, y);
                 ctx.stroke();
                 ctx.setLineDash([]);
-                // Label on line
-                ctx.fillStyle = '#131722';
-                ctx.fillRect(this.padding + 10, y - 10, 150, 20);
-                ctx.fillStyle = '#bbbbbb';
-                ctx.fillText(`BOS Confirmed Here (${annotations.bos.type})`, this.padding + 15, y + 5);
-            }
-            annotations.zones?.forEach(z => {
-                const top = getY(z.top);
-                const bottom = getY(z.bottom);
-                ctx.fillStyle = 'rgba(41, 98, 255, 0.08)';
-                ctx.fillRect(this.padding, top, this.width - 2 * this.padding, bottom - top);
                 ctx.fillStyle = '#2962ff';
-                ctx.fillText(z.label.toUpperCase(), this.padding + 15, top + 15);
-            });
+                ctx.font = 'bold 11px Arial';
+                ctx.fillText(`BREAK OF STRUCTURE (${annotations.bos.type})`, this.padding + 10, y - 5);
+            }
         }
-        // 6. Projected Move & Strategy (Step 3 & 4)
+        // 7. Projected Move (TP/SL/Entry)
         if (projected) {
             const entryY = getY(projected.entry);
             const slY = getY(projected.sl);
             const tpY = getY(projected.tp);
+            const isBuy = projected.direction === 'BUY';
             // Entry Line
-            ctx.strokeStyle = 'rgba(209, 212, 220, 0.5)';
+            ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 1;
+            ctx.setLineDash([2, 2]);
             ctx.beginPath();
             ctx.moveTo(this.padding, entryY);
-            ctx.lineTo(this.width - this.padding, entryY);
+            ctx.lineTo(this.width - this.priceColumnWidth, entryY);
             ctx.stroke();
-            ctx.fillStyle = '#d1d4dc';
-            ctx.fillText("ENTRY ZONE", this.width - 150, entryY - 5);
-            // TP Area
-            ctx.fillStyle = 'rgba(38, 166, 154, 0.15)';
-            if (projected.direction === 'BUY')
-                ctx.fillRect(this.padding, tpY, this.width - 2 * this.padding, entryY - tpY);
-            else
-                ctx.fillRect(this.padding, entryY, this.width - 2 * this.padding, tpY - entryY);
-            ctx.fillStyle = '#26a69a';
-            ctx.fillText("TARGET LIQUIDITY (TP)", this.width - 180, tpY + 15);
-            // SL Area
-            ctx.fillStyle = 'rgba(239, 83, 80, 0.15)';
-            if (projected.direction === 'BUY')
-                ctx.fillRect(this.padding, entryY, this.width - 2 * this.padding, slY - entryY);
-            else
-                ctx.fillRect(this.padding, slY, this.width - 2 * this.padding, entryY - slY);
-            ctx.fillStyle = '#ef5350';
-            ctx.fillText("INVALIDATION LEVEL (SL)", this.width - 180, slY - 5);
-            // Projection Arrow ( respecting structure)
-            ctx.strokeStyle = '#2962ff';
-            ctx.lineWidth = 3;
-            const startX = getX(candles.length - 1);
-            this.drawArrow(ctx, startX, entryY, startX + 120, tpY);
-            ctx.fillStyle = '#2962ff';
-            ctx.fillText("TREND CONTINUATION ZONE", startX + 20, (entryY + tpY) / 2);
+            ctx.setLineDash([]);
+            // TP Label
+            ctx.fillStyle = 'rgba(8, 153, 129, 0.2)';
+            const tpRectY = isBuy ? tpY : entryY;
+            const tpRectH = isBuy ? entryY - tpY : tpY - entryY;
+            ctx.fillRect(this.padding, tpRectY, chartWidth, tpRectH);
+            ctx.fillStyle = '#089981';
+            ctx.font = 'bold 12px Arial';
+            ctx.fillText(`TARGET TP: ${projected.tp.toFixed(symbol === 'EURUSD' ? 5 : 2)}`, this.width - 220, tpY - 10);
+            // SL Label
+            ctx.fillStyle = 'rgba(242, 54, 69, 0.2)';
+            const slRectY = isBuy ? entryY : slY;
+            const slRectH = isBuy ? slY - entryY : entryY - slY;
+            ctx.fillRect(this.padding, slRectY, chartWidth, slRectH);
+            ctx.fillStyle = '#f23645';
+            ctx.fillText(`STOP LOSS: ${projected.sl.toFixed(symbol === 'EURUSD' ? 5 : 2)}`, this.width - 220, slY + 20);
+            // Large Direction Indicator
+            ctx.font = 'bold 40px Arial';
+            ctx.fillStyle = isBuy ? '#089981' : '#f23645';
+            ctx.fillText(isBuy ? '⬆ BUY' : '⬇ SELL', this.width - 200, this.padding + 60);
         }
-        // 7. Institutional Header
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 22px Arial';
-        ctx.fillText(`XAUUSD INSTITUTIONAL ENGINE V4`, this.padding, this.padding - 15);
-        ctx.font = '12px Arial';
-        ctx.fillStyle = '#787b86';
-        ctx.fillText('Analysis derived from TradingView sequence logic', this.padding, this.height - 15);
         return canvas.toBuffer('image/png');
     }
     drawArrow(ctx, fromx, fromy, tox, toy) {

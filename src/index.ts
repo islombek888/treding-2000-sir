@@ -56,6 +56,9 @@ async function main() {
         symbolStates.get(s)!.price = price;
     });
 
+    // State for Cooldown tracking
+    const signalCooldowns = new Map<string, { time: number; direction: string }>();
+
     // Main Autonomous Loop
     setInterval(async () => {
         for (const symbol of symbols) {
@@ -77,7 +80,7 @@ async function main() {
             state.price += move;
             state.trendDuration--;
 
-            // Add candle for 1m
+            // Add candle for 1m (Base for aggregation)
             dataService.addCandle(symbol, '1m', {
                 timestamp: Date.now(),
                 open: state.price - move,
@@ -87,31 +90,45 @@ async function main() {
                 volume: 8000
             });
 
-            // Run the decision engine
+            // Run the decision engine (which uses multi-tf including 5m)
             const decision = await DecisionEngine.decide(dataService, symbol);
 
             if (decision) {
-                const candles = dataService.getCandles(symbol, '1m');
+                const candles5m = dataService.getCandles(symbol, '5m');
+                if (candles5m.length < 12) continue; // Need enough history for chart
+
                 const lastClose = state.price;
-                const prevClose = candles[candles.length - 20]?.close || lastClose;
+                const prevClose = candles5m[candles5m.length - 1]?.close || lastClose;
                 const pips = getPipValue(symbol, lastClose - prevClose);
+                const direction = lastClose > prevClose ? 'BUY' : 'SELL';
+
+                // COOLDOWN LOGIC: Prevent rapid switching and spamming
+                const lastSignal = signalCooldowns.get(symbol);
+                const now = Date.now();
+                if (lastSignal) {
+                    const diffMinutes = (now - lastSignal.time) / 60000;
+                    if (diffMinutes < 15) {
+                        // Skip if same direction or too fast
+                        continue;
+                    }
+                }
 
                 if (pips >= 5) {
-                    const atr = VolatilityEngine.calculateATR(candles);
+                    const atr = VolatilityEngine.calculateATR(candles5m);
                     const currentAtr = atr[atr.length - 1] || 0;
 
-                    // Calculate SL/TP for Chart
-                    const isBuy = lastClose > prevClose;
+                    // Calculate SL/TP
+                    const isBuy = direction === 'BUY';
                     const sl = isBuy ? lastClose - (currentAtr * 1.6) : lastClose + (currentAtr * 1.6);
                     const tp = isBuy ? lastClose + (currentAtr * 2.4) : lastClose - (currentAtr * 2.4);
 
-                    // Generate Chart Image
+                    // Generate Chart Image (Strictly 12 candles as requested)
                     const renderer = new ChartRenderer();
-                    const chart = await renderer.render(symbol, candles.slice(-50), {
+                    const chart = await renderer.render(symbol, candles5m.slice(-12), {
                         entry: lastClose,
                         sl,
                         tp,
-                        direction: isBuy ? 'BUY' : 'SELL'
+                        direction: direction
                     }, {
                         bos: { price: lastClose, type: isBuy ? 'BULLISH' : 'BEARISH' }
                     });
@@ -119,9 +136,9 @@ async function main() {
                     // Archive the signal
                     const archiver = new SignalArchiveService();
                     archiver.archive({
-                        timestamp: Date.now(),
+                        timestamp: now,
                         symbol,
-                        direction: isBuy ? 'BUY' : 'SELL',
+                        direction: direction,
                         entry: lastClose,
                         sl,
                         tp,
@@ -131,9 +148,12 @@ async function main() {
                         result: 'PENDING'
                     });
 
+                    // Update local cooldown
+                    signalCooldowns.set(symbol, { time: now, direction });
+
                     alertService.sendSignal({
                         symbol,
-                        direction: isBuy ? 'BUY' : 'SELL',
+                        direction: direction,
                         price: lastClose,
                         pips: pips,
                         confidence: decision.totalScore,

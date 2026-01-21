@@ -24,6 +24,7 @@ export declare class ChartRenderer {
     private width;
     private height;
     private padding;
+    private priceColumnWidth;
     render(symbol: string, candles: Candle[], projected?: ChartProjectedMove, annotations?: ChartAnnotations): Promise<Buffer>;
     private drawArrow;
 }

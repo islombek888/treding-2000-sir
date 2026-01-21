@@ -116,52 +116,55 @@ export class AlertService {
 
     public async sendSignal(signal: SignalData) {
         const isBuy = signal.direction === 'BUY';
+        const digits = signal.symbol === 'EURUSD' ? 5 : 2;
 
         // Institutional Risk Assessment
-        let riskLevel = 'MEDIUM';
-        if (signal.confidence >= 93) riskLevel = 'LOW';
-        else if (signal.confidence < 88) riskLevel = 'HIGH';
+        let riskLevel = 'O\'RTA';
+        if (signal.confidence >= 93) riskLevel = 'PAST';
+        else if (signal.confidence < 88) riskLevel = 'YUQORI';
 
-        // Time Window (Institutional estimate)
-        const minTime = Math.floor(signal.pips / 2.5);
-        const maxTime = Math.floor(signal.pips / 1.5);
+        // Expected Duration (Simplified for user)
+        const minTime = Math.floor(signal.pips / 2);
+        const maxTime = Math.floor(signal.pips * 1.5);
 
-        // Dynamic SL/TP calculation (ATR-based)
-        const slMult = 1.6; // Institutional tighter SL
+        // Dynamic SL/TP calculation (Same as chart)
+        const slMult = 1.6;
         const tpMult = 2.4;
         const sl = isBuy ? signal.price - (signal.atr * slMult) : signal.price + (signal.atr * slMult);
         const tp = isBuy ? signal.price + (signal.atr * tpMult) : signal.price - (signal.atr * tpMult);
 
-        // Visual Signal Card (ASCII representation of a terminal card)
+        // Visual Signal Card
         const cardHeader = isBuy ? '🟩 INSTITUTIONAL BUY 🟩' : '🟥 INSTITUTIONAL SELL 🟥';
         const cardBody = `
         ╔═════════════════════════════╗
         ║   ${cardHeader}   ║
         ╠═════════════════════════════╣
-        ║ Asset:  XAUUSD              ║
-        ║ Entry:  ${signal.price.toFixed(5).padEnd(20)}║
-        ║ SL (🛡️): ${sl.toFixed(5).padEnd(20)}║
-        ║ TP (🎯): ${tp.toFixed(5).padEnd(20)}║
+        ║ Asset:  ${signal.symbol.padEnd(20)}║
+        ║ Entry:  ${signal.price.toFixed(digits).padEnd(20)}║
+        ║ SL (🛡️): ${sl.toFixed(digits).padEnd(20)}║
+        ║ TP (🎯): ${tp.toFixed(digits).padEnd(20)}║
         ╚═════════════════════════════╝
         `;
 
         const message = `
-🏛️ *XAUUSD Institutional Analysis* 🏛️
+🏛️ *${signal.symbol} Institutional Tahlil* 🏛️
 
 \`\`\`
 ${cardBody.trim()}
 \`\`\`
 
-📊 *Strategy:* ${signal.strategy}
-📊 *Expected Move:* +${signal.pips} Pips
-🛡️ *Confidence:* ${signal.confidence}%
-⚖️ *Risk Level:* ${riskLevel}
-🕒 *Time Window:* ${minTime}-${maxTime} Minutes
+📊 *Strategiya:* ${signal.strategy}
+📊 *Kutilayotgan harakat:* +${signal.pips} Pips
+🛡️ *Ishonch:* ${signal.confidence}%
+⚖️ *Xavf darajasi:* ${riskLevel}
+🕒 *Kutilayotgan vaqt:* ${minTime}-${maxTime} minut
 
-🧠 *Basis:* 
-${signal.reason.map(r => `• ${r}`).join('\n')}
+🧠 *Asos:* 
+${signal.reason.map(r => `• ${r === 'Institutional Trend (EMA Multi-TF)' ? 'Trend yo\'nalishi (M5/M15)' :
+            r === 'Break of Structure (BOS)' ? 'Struktura buzilishi (BOS)' :
+                r === 'Volatility Expansion (ATR)' ? 'Volatillikning ortishi' : r}`).join('\n')}
 
-📍 *Action:* Execute at current price. Verified by 20-cycle consensus engine.
+📍 *Harakat:* Joriy narxdan kiring. 20-siklli tizim tomonidan tasdiqlangan.
         `;
 
         if (this.bot && this.subscribers.size > 0) {
