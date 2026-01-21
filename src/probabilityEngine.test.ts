@@ -4,10 +4,11 @@ describe('ProbabilityEngine', () => {
     it('should calculate high confidence score for clear confluence', () => {
         const result = ProbabilityEngine.calculate({
             ta: 'BULLISH',
-            struct: { bos: true, sweep: false },
+            struct: { bos: true, sweep: false, type: 'NONE' },
             vol: { expanding: true, ATR: 0.5 },
             divergence: 'BULLISH',
-            news: { status: 'SAFE', events: [] }
+            news: { status: 'SAFE', events: [] },
+            channel: 'NONE'
         });
 
         expect(result.totalScore).toBe(80); // 30 (TA) + 15 (BOS) + 20 (Vol) + 15 (Div)
@@ -17,10 +18,11 @@ describe('ProbabilityEngine', () => {
     it('should block signals during news', () => {
         const result = ProbabilityEngine.calculate({
             ta: 'BULLISH',
-            struct: { bos: true, sweep: false },
+            struct: { bos: true, sweep: false, type: 'NONE' },
             vol: { expanding: true, ATR: 0.5 },
             divergence: 'BULLISH',
-            news: { status: 'BLOCK', events: ['CPI'] }
+            news: { status: 'BLOCK', events: ['CPI'] },
+            channel: 'NONE'
         });
 
         expect(result.totalScore).toBe(0);
