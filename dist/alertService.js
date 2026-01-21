@@ -96,19 +96,27 @@ export class AlertService {
         }
     }
     async sendSignal(signal) {
+        const isBuy = signal.direction === 'BUY';
+        const candleEmoji = isBuy ? '🟢' : '🔴';
+        // Visual Candle Representation
+        const visualCandle = isBuy
+            ? `   ┃\n   ██\n   ██\n   ┃`
+            : `   ┃\n   ██\n   ██\n   ┃`;
         const message = `
 💎 *${signal.symbol} ULTRA SIGNAL* 🚀
 
-📍 *Direction:* ${signal.direction === 'BUY' ? '🟢 BUY' : '🔴 SELL'}
-📊 *Entry Price:* ${signal.price.toFixed(5)}
-📈 *Expected:* ${signal.pips} Pips
-🛡️ *Confidence:* ${signal.confidence}%
-🕒 *Window:* 10-25 Minutes
+${candleEmoji} *Yo'nalish:* ${isBuy ? 'SATIB OLISH (BUY)' : 'SOTISH (SELL)'}
+${isBuy ? '🟢' : '🔴'}${visualCandle}
 
-📝 *Reason:* 
+📊 *Kirish narxi:* ${signal.price.toFixed(5)}
+📈 *Kutilayotgan harakat:* ${signal.pips} Pips
+🛡️ *Ishonchlilik:* ${signal.confidence}%
+🕒 *Kutilayotgan vaqt:* ${Math.floor(signal.pips / 2)} - ${signal.pips} Minut
+
+📝 *Sabablar:* 
 ${signal.reason.map(r => `• ${r}`).join('\n')}
 
-🛡️ Institutional Accuracy. Faqat 85%+ confluencelar ko'rsatiladi.
+🛡️ Institutional Accuracy. 85%+ aniqlik.
         `;
         if (this.bot && this.subscribers.size > 0) {
             for (const [chatId, pref] of this.subscribers.entries()) {
