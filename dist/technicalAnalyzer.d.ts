@@ -8,6 +8,8 @@ export declare class TechnicalAnalyzer {
         type: 'BOS' | 'SWEEP' | 'NONE';
         direction: 'BULLISH' | 'BEARISH' | 'NONE';
     };
+    static detectMarketPhase(candles: Candle[]): 'EXPANSION' | 'COMPRESSION' | 'NONE';
+    static calculateATR(closes: number[], period?: number): number[];
     static analyzeTrendConfluence(candlesMap: Map<string, Candle[]>): 'BULLISH' | 'BEARISH' | 'NEUTRAL';
 }
 //# sourceMappingURL=technicalAnalyzer.d.ts.map

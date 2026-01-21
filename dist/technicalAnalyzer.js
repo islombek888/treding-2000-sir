@@ -93,6 +93,35 @@ export class TechnicalAnalyzer {
             return { type: 'SWEEP', direction: 'BULLISH' };
         return { type: 'NONE', direction: 'NONE' };
     }
+    static detectMarketPhase(candles) {
+        if (candles.length < 20)
+            return 'NONE';
+        const closes = candles.slice(-20).map(c => c.close);
+        const atr = this.calculateATR(closes);
+        if (atr.length < 2)
+            return 'NONE';
+        const lastAtr = atr[atr.length - 1];
+        const prevAtr = atr[atr.length - 10] || atr[0];
+        // Expansion: volatility increasing
+        if (lastAtr > prevAtr * 1.2)
+            return 'EXPANSION';
+        // Compression: price in tight range
+        const high = Math.max(...closes);
+        const low = Math.min(...closes);
+        const range = ((high - low) / low) * 100;
+        if (range < 0.1)
+            return 'COMPRESSION';
+        return 'NONE';
+    }
+    static calculateATR(closes, period = 14) {
+        // Wrapper for index.ts consistency if needed, but we use VolatilityEngine mostly
+        // Here we implement a simple one for internal phase detection
+        const atr = [];
+        for (let i = 1; i < closes.length; i++) {
+            atr.push(Math.abs(closes[i] - closes[i - 1]));
+        }
+        return atr;
+    }
     static analyzeTrendConfluence(candlesMap) {
         const tfs = ['1m', '5m', '15m', '1h'];
         let bullishScores = 0;

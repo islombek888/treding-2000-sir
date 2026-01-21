@@ -77,9 +77,9 @@ export class ChartRenderer {
             ctx.fillRect(x - candleWidth * 0.35, bodyTop, candleWidth * 0.7, Math.max(1, bodyBottom - bodyTop));
         });
 
-        // 5. Annotations
+        // 5. Annotations (Step 5 - On-Chart Explanation)
         if (annotations) {
-            ctx.font = 'bold 14px Arial';
+            ctx.font = 'bold 12px Arial';
             ctx.fillStyle = '#d1d4dc';
 
             if (annotations.bos) {
@@ -91,61 +91,86 @@ export class ChartRenderer {
                 ctx.lineTo(this.width - this.padding, y);
                 ctx.stroke();
                 ctx.setLineDash([]);
-                ctx.fillText(`BOS (${annotations.bos.type})`, this.padding + 10, y - 10);
+
+                // Label on line
+                ctx.fillStyle = '#131722';
+                ctx.fillRect(this.padding + 10, y - 10, 150, 20);
+                ctx.fillStyle = '#bbbbbb';
+                ctx.fillText(`BOS Confirmed Here (${annotations.bos.type})`, this.padding + 15, y + 5);
             }
 
             annotations.zones?.forEach(z => {
                 const top = getY(z.top);
                 const bottom = getY(z.bottom);
-                ctx.fillStyle = 'rgba(41, 98, 255, 0.1)';
+                ctx.fillStyle = 'rgba(41, 98, 255, 0.08)';
                 ctx.fillRect(this.padding, top, this.width - 2 * this.padding, bottom - top);
+
                 ctx.fillStyle = '#2962ff';
-                ctx.fillText(z.label, this.padding + 10, top + 20);
+                ctx.fillText(z.label.toUpperCase(), this.padding + 15, top + 15);
             });
         }
 
-        // 6. Projected Move
+        // 6. Projected Move & Strategy (Step 3 & 4)
         if (projected) {
             const entryY = getY(projected.entry);
             const slY = getY(projected.sl);
             const tpY = getY(projected.tp);
 
             // Entry Line
-            ctx.strokeStyle = '#bbbbbb';
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = 'rgba(209, 212, 220, 0.5)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(this.padding, entryY);
             ctx.lineTo(this.width - this.padding, entryY);
             ctx.stroke();
+            ctx.fillStyle = '#d1d4dc';
+            ctx.fillText("ENTRY ZONE", this.width - 150, entryY - 5);
 
             // TP Area
-            ctx.fillStyle = 'rgba(38, 166, 154, 0.2)';
+            ctx.fillStyle = 'rgba(38, 166, 154, 0.15)';
             if (projected.direction === 'BUY') ctx.fillRect(this.padding, tpY, this.width - 2 * this.padding, entryY - tpY);
             else ctx.fillRect(this.padding, entryY, this.width - 2 * this.padding, tpY - entryY);
+            ctx.fillStyle = '#26a69a';
+            ctx.fillText("TARGET LIQUIDITY (TP)", this.width - 180, tpY + 15);
 
             // SL Area
-            ctx.fillStyle = 'rgba(239, 83, 80, 0.2)';
+            ctx.fillStyle = 'rgba(239, 83, 80, 0.15)';
             if (projected.direction === 'BUY') ctx.fillRect(this.padding, entryY, this.width - 2 * this.padding, slY - entryY);
             else ctx.fillRect(this.padding, slY, this.width - 2 * this.padding, entryY - slY);
+            ctx.fillStyle = '#ef5350';
+            ctx.fillText("INVALIDATION LEVEL (SL)", this.width - 180, slY - 5);
 
-            // Projection Arrow
+            // Projection Arrow ( respecting structure)
             ctx.strokeStyle = '#2962ff';
-            ctx.lineWidth = 4;
+            ctx.lineWidth = 3;
             const startX = getX(candles.length - 1);
-            ctx.beginPath();
-            ctx.moveTo(startX, entryY);
-            ctx.lineTo(startX + 100, tpY);
-            ctx.stroke();
+            this.drawArrow(ctx, startX, entryY, startX + 120, tpY);
+            ctx.fillStyle = '#2962ff';
+            ctx.fillText("TREND CONTINUATION ZONE", startX + 20, (entryY + tpY) / 2);
         }
 
-        // 7. Header Info
+        // 7. Institutional Header
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 24px Arial';
-        ctx.fillText(`${symbol} | ${projected?.direction || 'ANALYSIS'}`, this.padding, this.padding - 10);
-        ctx.font = '14px Arial';
-        ctx.fillStyle = '#d1d4dc';
-        ctx.fillText('Institutional Precision Engine', this.padding, this.height - 20);
+        ctx.font = 'bold 22px Arial';
+        ctx.fillText(`XAUUSD INSTITUTIONAL ENGINE V4`, this.padding, this.padding - 15);
+        ctx.font = '12px Arial';
+        ctx.fillStyle = '#787b86';
+        ctx.fillText('Analysis derived from TradingView sequence logic', this.padding, this.height - 15);
 
         return canvas.toBuffer('image/png');
+    }
+
+    private drawArrow(ctx: CanvasRenderingContext2D, fromx: number, fromy: number, tox: number, toy: number) {
+        const headlen = 15;
+        const dx = tox - fromx;
+        const dy = toy - fromy;
+        const angle = Math.atan2(dy, dx);
+        ctx.beginPath();
+        ctx.moveTo(fromx, fromy);
+        ctx.lineTo(tox, toy);
+        ctx.lineTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle - Math.PI / 6));
+        ctx.moveTo(tox, toy);
+        ctx.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
+        ctx.stroke();
     }
 }

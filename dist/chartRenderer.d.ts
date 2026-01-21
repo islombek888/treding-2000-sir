@@ -25,5 +25,6 @@ export declare class ChartRenderer {
     private height;
     private padding;
     render(symbol: string, candles: Candle[], projected?: ChartProjectedMove, annotations?: ChartAnnotations): Promise<Buffer>;
+    private drawArrow;
 }
 //# sourceMappingURL=chartRenderer.d.ts.map

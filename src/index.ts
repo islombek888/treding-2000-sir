@@ -14,7 +14,14 @@ async function main() {
 
     console.log("🚀 Institutional XAUUSD Analyst Starting...");
 
-    // ... (server setup remains same) ...
+    // Simple HTTP server for Render port binding
+    const port = process.env.PORT || 3000;
+    http.createServer((req, res) => {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('Bot is running\n');
+    }).listen(port, () => {
+        console.log(`🌐 Web server listening on port ${port}`);
+    });
 
     // Initial state for simulation per symbol
     const symbolStates = new Map<string, { price: number; trend: number; trendDuration: number }>();
