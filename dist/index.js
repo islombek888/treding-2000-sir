@@ -93,8 +93,8 @@ async function main() {
                 else {
                     pips = Math.round(Math.abs(lastClose - prevClose) * 10000);
                 }
-                // ULTRA ACCURACY: 50+ pips requirement
-                if (pips >= 50) {
+                // Minimum 15 pips requirement (filters applied in AlertService)
+                if (pips >= 15) {
                     alertService.sendSignal({
                         symbol,
                         direction: lastClose > prevClose ? 'BUY' : 'SELL',

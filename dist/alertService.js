@@ -122,7 +122,7 @@ ${signal.reason.map(r => `• ${r}`).join('\n')}
             for (const [chatId, pref] of this.subscribers.entries()) {
                 // Filter Logic
                 let shouldSend = false;
-                if (pref === 'ALL')
+                if (pref === 'ALL' && signal.pips >= 15)
                     shouldSend = true;
                 else if (pref === 'XAUUSD' && signal.symbol === 'XAUUSD')
                     shouldSend = true;
