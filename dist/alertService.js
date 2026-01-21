@@ -97,48 +97,70 @@ export class AlertService {
     }
     async sendSignal(signal) {
         const isBuy = signal.direction === 'BUY';
-        const candleEmoji = isBuy ? '🟢' : '🔴';
-        // Visual Candle Representation
-        const visualCandle = isBuy
-            ? `   ┃\n   ██\n   ██\n   ┃`
-            : `   ┃\n   ██\n   ██\n   ┃`;
+        // Institutional Risk Assessment
+        let riskLevel = 'MEDIUM';
+        if (signal.confidence >= 93)
+            riskLevel = 'LOW';
+        else if (signal.confidence < 88)
+            riskLevel = 'HIGH';
+        // Time Window (Institutional estimate)
+        const minTime = Math.floor(signal.pips / 2.5);
+        const maxTime = Math.floor(signal.pips / 1.5);
+        // Dynamic SL/TP calculation (ATR-based)
+        const slMult = 1.6; // Institutional tighter SL
+        const tpMult = 2.4;
+        const sl = isBuy ? signal.price - (signal.atr * slMult) : signal.price + (signal.atr * slMult);
+        const tp = isBuy ? signal.price + (signal.atr * tpMult) : signal.price - (signal.atr * tpMult);
+        // Visual Signal Card (ASCII representation of a terminal card)
+        const cardHeader = isBuy ? '🟩 INSTITUTIONAL BUY 🟩' : '🟥 INSTITUTIONAL SELL 🟥';
+        const cardBody = `
+        ╔═════════════════════════════╗
+        ║   ${cardHeader}   ║
+        ╠═════════════════════════════╣
+        ║ Asset:  XAUUSD              ║
+        ║ Entry:  ${signal.price.toFixed(5).padEnd(20)}║
+        ║ SL (🛡️): ${sl.toFixed(5).padEnd(20)}║
+        ║ TP (🎯): ${tp.toFixed(5).padEnd(20)}║
+        ╚═════════════════════════════╝
+        `;
         const message = `
-💎 *${signal.symbol} ULTRA SIGNAL* 🚀
+🏛️ *XAUUSD Institutional Analysis* 🏛️
 
-${candleEmoji} *Yo'nalish:* ${isBuy ? 'SATIB OLISH (BUY)' : 'SOTISH (SELL)'}
-${isBuy ? '🟢' : '🔴'}${visualCandle}
+\`\`\`
+${cardBody.trim()}
+\`\`\`
 
-📊 *Kirish narxi:* ${signal.price.toFixed(5)}
-📈 *Kutilayotgan harakat:* ${signal.pips} Pips
-🛡️ *Ishonchlilik:* ${signal.confidence}%
-🕒 *Kutilayotgan vaqt:* ${Math.floor(signal.pips / 2)} - ${signal.pips} Minut
+📊 *Strategy:* ${signal.strategy}
+📊 *Expected Move:* +${signal.pips} Pips
+🛡️ *Confidence:* ${signal.confidence}%
+⚖️ *Risk Level:* ${riskLevel}
+🕒 *Time Window:* ${minTime}-${maxTime} Minutes
 
-📝 *Sabablar:* 
+🧠 *Basis:* 
 ${signal.reason.map(r => `• ${r}`).join('\n')}
 
-🛡️ Institutional Accuracy. 85%+ aniqlik.
+📍 *Action:* Execute at current price. Verified by 20-cycle consensus engine.
         `;
         if (this.bot && this.subscribers.size > 0) {
             for (const [chatId, pref] of this.subscribers.entries()) {
-                // Filter Logic
-                let shouldSend = false;
-                if (pref === 'ALL' && signal.pips >= 7)
-                    shouldSend = true;
-                else if (pref === 'XAUUSD' && signal.symbol === 'XAUUSD')
-                    shouldSend = true;
-                else if (pref === 'ULTRA' && signal.pips >= 200)
-                    shouldSend = true;
-                else if (pref === 'STANDARD' && signal.pips >= 50)
-                    shouldSend = true;
-                if (shouldSend) {
-                    try {
+                // In institutional mode, all subscribers get all high-confidence signals
+                // The filtering logic is removed as per the instruction's description for XAUUSD-only institutional focus
+                // and the provided sendSignal method which sends to all subscribers.
+                try {
+                    if (signal.chart) {
+                        await this.bot.sendPhoto(chatId, signal.chart, {
+                            caption: message,
+                            parse_mode: 'Markdown'
+                        });
+                    }
+                    else {
                         await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
                     }
-                    catch (error) {
-                        if (error.response?.statusCode === 403) {
-                            this.subscribers.delete(chatId);
-                            this.saveSubscribers();
-                        }
+                }
+                catch (error) {
+                    if (error.response?.statusCode === 403) {
+                        this.subscribers.delete(chatId);
+                        this.saveSubscribers();
                     }
                 }
             }

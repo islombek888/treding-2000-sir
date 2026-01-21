@@ -1,4 +1,4 @@
-import { type MarketDataService } from './marketDataService.js';
+import { type MarketDataService, type Candle } from './marketDataService.js';
 import { TechnicalAnalyzer } from './technicalAnalyzer.js';
 import { StructureAnalyzer } from './structureAnalyzer.js';
 import { VolatilityEngine } from './volatilityEngine.js';
@@ -15,47 +15,56 @@ export class DecisionEngine {
         const iterations = 20;
 
         for (let i = 0; i < iterations; i++) {
-            const candles = dataService.getCandles(symbol, '1m'); // Using 1m for entry precision
-            if (candles.length < 200) return null;
+            const candles1m = dataService.getCandles(symbol, '1m');
+            const candles5m = dataService.getCandles(symbol, '5m');
+            const candles15m = dataService.getCandles(symbol, '15m');
+            const candles1h = dataService.getCandles(symbol, '1h');
 
-            const closes = candles.map(c => c.close);
-            const ta = TechnicalAnalyzer.analyzeTrendConfluence(candles);
-            const struct = StructureAnalyzer.detectStructure(candles);
-            const atr = VolatilityEngine.calculateATR(candles);
+            if (candles1m.length < 200) return null;
+
+            const candlesMap = new Map<string, Candle[]>();
+            candlesMap.set('1m', candles1m);
+            candlesMap.set('5m', candles5m);
+            candlesMap.set('15m', candles15m);
+            candlesMap.set('1h', candles1h);
+
+            const ta = TechnicalAnalyzer.analyzeTrendConfluence(candlesMap);
+            const struct = StructureAnalyzer.detectStructure(candles1m);
+            const atr = VolatilityEngine.calculateATR(candles1m);
             const expanding = VolatilityEngine.isExpanding(atr);
-            const rsi = TechnicalAnalyzer.calculateRSI(closes);
-            const divergence = TechnicalAnalyzer.detectDivergence(closes, rsi);
+            const rsi = TechnicalAnalyzer.calculateRSI(candles1m.map(c => c.close));
+            const divergence = TechnicalAnalyzer.detectDivergence(candles1m.map(c => c.close), rsi);
             const news = NewsAnalyzer.checkNewsRisk();
+            const channel = TechnicalAnalyzer.detectChannel(candles1m);
 
             const prob = ProbabilityEngine.calculate({
                 ta,
                 struct,
                 vol: { expanding, ATR: atr[atr.length - 1] || 0 },
                 divergence,
-                news
+                news,
+                channel
             });
 
             results.push(prob);
-
-            if (i < iterations - 1) await new Promise(res => setTimeout(res, 30));
+            if (i < iterations - 1) await new Promise(res => setTimeout(res, 20));
         }
 
+        // CONSENSUS FILTER
         const avgScore = results.reduce((a, b) => a + b.totalScore, 0) / iterations;
-        const variance = results.filter(r => Math.abs(r.totalScore - avgScore) > 8).length;
+        const inconsistency = results.filter(r => Math.abs(r.totalScore - avgScore) > 5).length;
 
-        if (variance > 4) {
-            console.log(`[Institutional Decision] Inconsistent results (variance: ${variance}). Cancelling signal.`);
+        if (inconsistency > 3) {
+            console.log(`[Institutional] ⚠️ Consensus failed for ${symbol} (Inconsistency: ${inconsistency}). Discarding signal.`);
             return null;
         }
 
         const finalResult = results[results.length - 1]!;
-        if (finalResult.totalScore >= 85 && finalResult.isSafe) {
-            console.log(`[Institutional Decision] ✅ ULTRA SIGNAL APPROVED for ${symbol} with confidence ${finalResult.totalScore}%`);
-            return finalResult;
-        }
+        const minThreshold = 85;
 
-        if (finalResult.totalScore > 0) {
-            console.log(`[Institutional Decision] ❌ Signal REJECTED for ${symbol} (Score: ${finalResult.totalScore}%, Safety: ${finalResult.isSafe})`);
+        if (finalResult.totalScore >= minThreshold && finalResult.isSafe) {
+            console.log(`[Institutional] ✅ ULTRA SIGNAL APPROVED for ${symbol} | Confidence: ${finalResult.totalScore}%`);
+            return finalResult;
         }
 
         return null;

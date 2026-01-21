@@ -6,44 +6,53 @@ export class ProbabilityEngine {
     static calculate(analysis) {
         let score = 0;
         const confluenceList = [];
-        // 1. Technical Confluence (30%)
+        let strategy = 'Universal Institutional Model';
+        // 1. Technical Confluence (35%) - Multi-tf EMA
         if (analysis.ta === 'BULLISH' || analysis.ta === 'BEARISH') {
-            score += 30;
-            confluenceList.push('Trend mosligi (EMA 20/50/200)');
+            score += 35;
+            confluenceList.push('Institutional Trend (EMA Multi-TF)');
+            strategy = 'Gold Trend Continuation Pro';
         }
-        // 2. Structure Confluence (25%)
+        // 2. Structure Confluence (30%) - BOS/HH/LL
         if (analysis.struct.bos) {
-            score += 15;
-            confluenceList.push('Struktura buzilishi (BOS)');
-        }
-        if (analysis.struct.sweep) {
-            score += 10;
-            confluenceList.push('Likvidlik yig\'ilishi (Sweep)');
-        }
-        // 3. Volatility Confluence (20%)
-        if (analysis.vol.expanding) {
             score += 20;
-            confluenceList.push('Volatillik kengayishi (ATR)');
+            confluenceList.push('Break of Structure (BOS)');
+            strategy = 'XAUUSD BOS + Liquidity Strategy';
         }
-        // 4. Divergence Confluence (15%)
-        if (analysis.divergence !== 'NONE') {
+        if (analysis.struct.type !== 'NONE') {
+            score += 10;
+            confluenceList.push(`Market Structure (${analysis.struct.type})`);
+        }
+        // 3. Volatility Confluence (15%) - expansion
+        if (analysis.vol.expanding) {
             score += 15;
-            confluenceList.push(`RSI ${analysis.divergence === 'BULLISH' ? 'O\'suvchi' : 'Pasayuvchi'} Divergensiya`);
+            confluenceList.push('Volatility Expansion (ATR)');
         }
-        // 5. News Logic (Penalty/Block)
+        // 4. Divergence (10%)
+        if (analysis.divergence !== 'NONE') {
+            score += 10;
+            confluenceList.push(`RSI ${analysis.divergence} Divergence`);
+        }
+        // 5. Channel (10%)
+        if (analysis.channel !== 'NONE') {
+            score += 10;
+            confluenceList.push(`Channel Alignment (${analysis.channel})`);
+        }
+        // 6. News Filter (Mandatory)
         let isSafe = true;
         if (analysis.news.status === 'BLOCK') {
             score = 0;
             isSafe = false;
         }
         else if (analysis.news.status === 'RISKY') {
-            score -= 20;
+            score -= 25;
             isSafe = true;
         }
         return {
-            totalScore: Math.max(0, score),
+            totalScore: Math.min(100, Math.max(0, score)),
             confluenceList,
-            isSafe
+            isSafe,
+            strategy
         };
     }
 }

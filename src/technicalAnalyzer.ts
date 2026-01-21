@@ -58,28 +58,75 @@ export class TechnicalAnalyzer {
         return 'NONE';
     }
 
-    static analyzeTrendConfluence(candles: Candle[]): 'BULLISH' | 'BEARISH' | 'NEUTRAL' {
-        const closes = candles.map(c => c.close);
-        const ema20 = this.calculateEMA(closes, 20);
-        const ema50 = this.calculateEMA(closes, 50);
-        const ema200 = this.calculateEMA(closes, 200);
+    static detectChannel(candles: Candle[]): 'ASCENDING' | 'DESCENDING' | 'NONE' {
+        if (candles.length < 20) return 'NONE';
+        const closes = candles.slice(-20).map(c => c.close);
 
-        if (ema20.length === 0 || ema50.length === 0 || ema200.length === 0) return 'NEUTRAL';
+        let higherHighs = 0;
+        let higherLows = 0;
+        let lowerHighs = 0;
+        let lowerLows = 0;
 
-        const e20 = ema20[ema20.length - 1]!;
-        const e50 = ema50[ema50.length - 1]!;
-        const e200 = ema200[ema200.length - 1]!;
-        const current = closes[closes.length - 1]!;
+        for (let i = 1; i < candles.slice(-20).length; i++) {
+            const current = candles[candles.length - 20 + i]!;
+            const prev = candles[candles.length - 20 + i - 1]!;
 
-        // 1. Classic EMA Trend
-        if (current > e20 && e20 > e50 && e50 > e200) return 'BULLISH';
-        if (current < e20 && e20 < e50 && e50 < e200) return 'BEARISH';
+            if (current.high > prev.high) higherHighs++;
+            if (current.low > prev.low) higherLows++;
+            if (current.high < prev.high) lowerHighs++;
+            if (current.low < prev.low) lowerLows++;
+        }
 
-        // 2. Scalping Momentum (Faster detection for small pips)
-        const last5 = closes.slice(-5);
-        const sma5 = last5.reduce((a, b) => a + b, 0) / 5;
-        if (current > sma5 && current > e20 && (current - last5[0]!) > (current * 0.0005)) return 'BULLISH';
-        if (current < sma5 && current < e20 && (last5[0]! - current) > (current * 0.0005)) return 'BEARISH';
+        if (higherHighs > 10 && higherLows > 10) return 'ASCENDING';
+        if (lowerHighs > 10 && lowerLows > 10) return 'DESCENDING';
+
+        return 'NONE';
+    }
+
+    static detectStructure(candles: Candle[]): { type: 'BOS' | 'SWEEP' | 'NONE'; direction: 'BULLISH' | 'BEARISH' | 'NONE' } {
+        if (candles.length < 20) return { type: 'NONE', direction: 'NONE' };
+
+        const recent = candles.slice(-20);
+        const last = recent[recent.length - 1]!;
+        const prevHigh = Math.max(...recent.slice(0, -1).map(c => c.high));
+        const prevLow = Math.min(...recent.slice(0, -1).map(c => c.low));
+
+        // Break of Structure (BOS)
+        if (last.close > prevHigh) return { type: 'BOS', direction: 'BULLISH' };
+        if (last.close < prevLow) return { type: 'BOS', direction: 'BEARISH' };
+
+        // Liquidity Sweep (Fake breakout)
+        if (last.high > prevHigh && last.close < prevHigh) return { type: 'SWEEP', direction: 'BEARISH' };
+        if (last.low < prevLow && last.close > prevLow) return { type: 'SWEEP', direction: 'BULLISH' };
+
+        return { type: 'NONE', direction: 'NONE' };
+    }
+
+    static analyzeTrendConfluence(candlesMap: Map<string, Candle[]>): 'BULLISH' | 'BEARISH' | 'NEUTRAL' {
+        const tfs: ('1m' | '5m' | '15m' | '1h')[] = ['1m', '5m', '15m', '1h'];
+        let bullishScores = 0;
+        let bearishScores = 0;
+
+        for (const tf of tfs) {
+            const candles = candlesMap.get(tf);
+            if (!candles || candles.length < 50) continue;
+
+            const closes = candles.map(c => c.close);
+            const ema20 = this.calculateEMA(closes, 20);
+            const ema50 = this.calculateEMA(closes, 50);
+
+            if (ema20.length === 0 || ema50.length === 0) continue;
+
+            const e20 = ema20[ema20.length - 1]!;
+            const e50 = ema50[ema50.length - 1]!;
+            const current = closes[closes.length - 1]!;
+
+            if (current > e20 && e20 > e50) bullishScores++;
+            if (current < e20 && e20 < e50) bearishScores++;
+        }
+
+        if (bullishScores >= 3) return 'BULLISH';
+        if (bearishScores >= 3) return 'BEARISH';
 
         return 'NEUTRAL';
     }

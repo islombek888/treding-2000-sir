@@ -25,6 +25,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "canvas": "^3.2.1",
     "dotenv": "^17.2.3",
     "node-telegram-bot-api": "^0.67.0"
   }

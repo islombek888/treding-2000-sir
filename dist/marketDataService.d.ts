@@ -11,6 +11,7 @@ export declare class MarketDataService {
     private history;
     private ensureSymbol;
     addCandle(symbol: string, tf: Timeframe, candle: Candle): void;
+    private aggregate;
     getCandles(symbol: string, tf: Timeframe): Candle[];
     getLatestPrice(symbol: string): number | null;
 }

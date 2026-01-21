@@ -5,6 +5,9 @@ export interface SignalData {
     pips: number;
     confidence: number;
     reason: string[];
+    atr: number;
+    strategy: string;
+    chart?: Buffer;
 }
 export declare class AlertService {
     private static instance;
