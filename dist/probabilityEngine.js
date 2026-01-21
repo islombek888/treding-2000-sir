@@ -7,13 +7,18 @@ export class ProbabilityEngine {
         if (analysis.ta === 'BULLISH' || analysis.ta === 'BEARISH') {
             score += 35;
             confluenceList.push('Institutional Trend (EMA Multi-TF)');
-            strategy = 'Gold Trend Continuation Pro';
+            strategy = 'Asset Trend Continuation Pro';
         }
-        // 2. Structure Confluence (30%) - BOS/HH/LL
+        else if (analysis.ta === 'NEUTRAL') {
+            // Give partial credit for neutral/mixed trend if other factors exist
+            score += 15;
+            confluenceList.push('Secondary Trend Support');
+        }
+        // 2. Structure Confluence (40%) - BOS/HH/LL
         if (analysis.struct.bos) {
-            score += 20;
+            score += 25;
             confluenceList.push('Break of Structure (BOS)');
-            strategy = 'XAUUSD BOS + Liquidity Strategy';
+            strategy = 'Institutional BOS + Liquidity';
         }
         if (analysis.struct.type !== 'NONE') {
             score += 10;
@@ -24,14 +29,14 @@ export class ProbabilityEngine {
             score += 15;
             confluenceList.push('Volatility Expansion (ATR)');
         }
-        // 4. Divergence (10%)
+        // 4. Divergence (15%)
         if (analysis.divergence !== 'NONE') {
-            score += 10;
+            score += 15;
             confluenceList.push(`RSI ${analysis.divergence} Divergence`);
         }
-        // 5. Channel (10%)
+        // 5. Channel (15%)
         if (analysis.channel !== 'NONE') {
-            score += 10;
+            score += 15;
             confluenceList.push(`Channel Alignment (${analysis.channel})`);
         }
         // 6. News Filter (Mandatory)

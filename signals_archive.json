@@ -1,0 +1,98 @@
+[
+  {
+    "timestamp": 1768986349198,
+    "symbol": "XAUUSD",
+    "direction": "BUY",
+    "entry": 2082.2776580627974,
+    "sl": 2076.7533295247204,
+    "tp": 2090.564150869913,
+    "pips": 1446,
+    "confidence": 55,
+    "strategy": "Institutional Expansion Model",
+    "result": "PENDING"
+  },
+  {
+    "timestamp": 1768986349534,
+    "symbol": "EURUSD",
+    "direction": "BUY",
+    "entry": 1.1202693919707127,
+    "sl": 1.1189303415177463,
+    "tp": 1.1222779676501624,
+    "pips": 50,
+    "confidence": 55,
+    "strategy": "Institutional Expansion Model",
+    "result": "PENDING"
+  },
+  {
+    "timestamp": 1768986361079,
+    "symbol": "XAUUSD",
+    "direction": "BUY",
+    "entry": 2096.2856520898167,
+    "sl": 2088.594456682376,
+    "tp": 2107.822445200978,
+    "pips": 2835,
+    "confidence": 55,
+    "strategy": "Institutional Expansion Model",
+    "result": "PENDING"
+  },
+  {
+    "timestamp": 1768986373108,
+    "symbol": "XAUUSD",
+    "direction": "BUY",
+    "entry": 2138.7476335180754,
+    "sl": 2123.8413326071413,
+    "tp": 2161.107084884476,
+    "pips": 7063,
+    "confidence": 55,
+    "strategy": "Institutional Expansion Model",
+    "result": "PENDING"
+  },
+  {
+    "timestamp": 1768986373453,
+    "symbol": "EURUSD",
+    "direction": "BUY",
+    "entry": 1.1226524388588723,
+    "sl": 1.1210776007220076,
+    "tp": 1.1250146960641694,
+    "pips": 73,
+    "confidence": 55,
+    "strategy": "Institutional Expansion Model",
+    "result": "PENDING"
+  },
+  {
+    "timestamp": 1768986385425,
+    "symbol": "EURUSD",
+    "direction": "BUY",
+    "entry": 1.1238462154230886,
+    "sl": 1.122165575152829,
+    "tp": 1.1263671758284781,
+    "pips": 84,
+    "confidence": 55,
+    "strategy": "Institutional Expansion Model",
+    "result": "PENDING"
+  },
+  {
+    "timestamp": 1768986397090,
+    "symbol": "XAUUSD",
+    "direction": "BUY",
+    "entry": 2165.922548731256,
+    "sl": 2148.2753302174733,
+    "tp": 2192.39337650193,
+    "pips": 9808,
+    "confidence": 55,
+    "strategy": "Institutional Expansion Model",
+    "result": "PENDING"
+  },
+  {
+    "timestamp": 1768986397453,
+    "symbol": "EURUSD",
+    "direction": "BUY",
+    "entry": 1.125088794147008,
+    "sl": 1.1233009852151075,
+    "tp": 1.127770507544859,
+    "pips": 95,
+    "confidence": 55,
+    "strategy": "Institutional Expansion Model",
+    "result": "PENDING"
+  }
+]

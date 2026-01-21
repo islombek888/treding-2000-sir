@@ -54,16 +54,17 @@ export class DecisionEngine {
         // Consensus & Strategy Refinement
         const avgScore = results.reduce((a, b) => a + b.totalScore, 0) / iterations;
         const inconsistencies = results.filter(r => Math.abs(r.totalScore - avgScore) > 5).length;
-        if (inconsistencies > 3 || avgScore < 85) {
-            console.log(`[Institutional] ⚠️ Consensus failed for ${symbol} (Inconsistency: ${inconsistencies}).`);
+        const finalResult = results[results.length - 1];
+        console.log(`[Institutional] 📊 Final Result for ${symbol}: Score: ${avgScore.toFixed(2)}, Confluences: ${finalResult.confluenceList.join(', ')}`);
+        if (inconsistencies > 3 || avgScore < 50) {
+            console.log(`[Institutional] ⚠️ Consensus failed for ${symbol} (Score: ${avgScore.toFixed(2)}, Inconsistency: ${inconsistencies}).`);
             return null;
         }
-        const final = results[results.length - 1];
-        if (final.strategy === 'Universal Institutional Model') {
-            final.strategy = `${strategyPrefix} Model`;
+        if (finalResult.strategy === 'Universal Institutional Model') {
+            finalResult.strategy = `${strategyPrefix} Model`;
         }
-        console.log(`[Institutional] ✅ ULTRA SIGNAL APPROVED for ${symbol} | Confidence: ${final.totalScore}%`);
-        return final;
+        console.log(`[Institutional] ✅ ULTRA SIGNAL APPROVED for ${symbol} | Confidence: ${finalResult.totalScore}%`);
+        return finalResult;
     }
 }
 //# sourceMappingURL=decisionEngine.js.map

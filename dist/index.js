@@ -8,8 +8,17 @@ import http from 'http';
 async function main() {
     const dataService = new MarketDataService();
     const alertService = AlertService.getInstance();
-    const symbols = ['XAUUSD'];
-    console.log("🚀 Institutional XAUUSD Analyst Starting...");
+    const symbols = ['XAUUSD', 'EURUSD'];
+    function getPipValue(symbol, diff) {
+        if (symbol === 'XAUUSD') {
+            return Math.round(Math.abs(diff) * 100);
+        }
+        else if (symbol === 'EURUSD') {
+            return Math.round(Math.abs(diff) * 10000);
+        }
+        return Math.round(Math.abs(diff));
+    }
+    console.log("🚀 Institutional Multi-Asset Analyst Starting...");
     // Simple HTTP server for Render port binding
     const port = process.env.PORT || 3000;
     http.createServer((req, res) => {
@@ -21,18 +30,19 @@ async function main() {
     // Initial state for simulation per symbol
     const symbolStates = new Map();
     symbols.forEach(s => {
-        const startPrice = 2050.0;
+        const startPrice = s === 'XAUUSD' ? 2050.0 : 1.1000;
         symbolStates.set(s, { price: startPrice, trend: 0, trendDuration: 0 });
         // Seed with 300 candles
         let price = startPrice;
         const trendBias = (Math.random() - 0.5) * 0.0001;
+        const volatilityFactor = s === 'XAUUSD' ? 0.0005 : 0.0002;
         for (let i = 0; i < 300; i++) {
-            price += (Math.random() - 0.5) * (startPrice * 0.0005) + (startPrice * trendBias);
+            price += (Math.random() - 0.5) * (startPrice * volatilityFactor) + (startPrice * trendBias);
             dataService.addCandle(s, '1m', {
                 timestamp: Date.now() - (300 - i) * 60000,
                 open: price,
-                high: price + (startPrice * 0.0005),
-                low: price - (startPrice * 0.0005),
+                high: price + (startPrice * volatilityFactor),
+                low: price - (startPrice * volatilityFactor),
                 close: price,
                 volume: 1000
             });
@@ -43,15 +53,17 @@ async function main() {
     setInterval(async () => {
         for (const symbol of symbols) {
             const state = symbolStates.get(symbol);
-            const startPrice = 2050.0;
+            const startPrice = symbol === 'XAUUSD' ? 2050.0 : 1.1000;
             // INTENSE TREND SIMULATION
             if (state.trendDuration <= 0) {
                 const dir = Math.random() > 0.5 ? 1 : -1;
-                state.trend = dir * (Math.random() * 0.004 + 0.002);
+                const trendPower = symbol === 'XAUUSD' ? (Math.random() * 0.004 + 0.002) : (Math.random() * 0.001 + 0.0005);
+                state.trend = dir * trendPower;
                 state.trendDuration = 40 + Math.floor(Math.random() * 60);
             }
             const volatility = (Math.random() > 0.96) ? 4.0 : 1.3;
-            const move = (state.trend * startPrice * volatility) + (Math.random() - 0.5) * (startPrice * 0.0004);
+            const noise = symbol === 'XAUUSD' ? 0.0004 : 0.0001;
+            const move = (state.trend * startPrice * volatility) + (Math.random() - 0.5) * (startPrice * noise);
             state.price += move;
             state.trendDuration--;
             // Add candle for 1m
@@ -69,8 +81,8 @@ async function main() {
                 const candles = dataService.getCandles(symbol, '1m');
                 const lastClose = state.price;
                 const prevClose = candles[candles.length - 20]?.close || lastClose;
-                const pips = Math.round(Math.abs(lastClose - prevClose) * 100);
-                if (pips >= 50) {
+                const pips = getPipValue(symbol, lastClose - prevClose);
+                if (pips >= 5) {
                     const atr = VolatilityEngine.calculateATR(candles);
                     const currentAtr = atr[atr.length - 1] || 0;
                     // Calculate SL/TP for Chart
