@@ -59,9 +59,17 @@ export class TechnicalAnalyzer {
         const e50 = ema50[ema50.length - 1];
         const e200 = ema200[ema200.length - 1];
         const current = closes[closes.length - 1];
+        // 1. Classic EMA Trend
         if (current > e20 && e20 > e50 && e50 > e200)
             return 'BULLISH';
         if (current < e20 && e20 < e50 && e50 < e200)
+            return 'BEARISH';
+        // 2. Scalping Momentum (Faster detection for small pips)
+        const last5 = closes.slice(-5);
+        const sma5 = last5.reduce((a, b) => a + b, 0) / 5;
+        if (current > sma5 && current > e20 && (current - last5[0]) > (current * 0.0005))
+            return 'BULLISH';
+        if (current < sma5 && current < e20 && (last5[0] - current) > (current * 0.0005))
             return 'BEARISH';
         return 'NEUTRAL';
     }
