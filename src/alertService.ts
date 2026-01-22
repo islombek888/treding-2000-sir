@@ -32,10 +32,8 @@ export class AlertService {
 
     // Button Labels
     private BUTTONS = {
-        TF_1M: '⏱️ 1m Focus',
+    
         TF_5M: '⏱️ 5m Focus',
-        TF_15M: '⏱️ 15m Focus',
-        ALL: '🌐 Hamma turdagi'
     };
 
     private constructor() {
@@ -75,19 +73,10 @@ export class AlertService {
                     this.bot?.sendMessage(chatId, statusText, { parse_mode: 'Markdown' });
                     return;
                 }
-
-                if (text === this.BUTTONS.TF_1M) {
-                    this.subscribers.set(chatId, '1m');
-                    this.bot?.sendMessage(chatId, "✅ Sozlandi: Faqat *1 minutlik* aniq va tezkor signallar yuboriladi.", { parse_mode: 'Markdown' });
-                } else if (text === this.BUTTONS.TF_5M) {
+                
+                if (text === this.BUTTONS.TF_5M) {
                     this.subscribers.set(chatId, '5m');
                     this.bot?.sendMessage(chatId, "✅ Sozlandi: Faqat *5 minutlik* standart signallar yuboriladi.", { parse_mode: 'Markdown' });
-                } else if (text === this.BUTTONS.TF_15M) {
-                    this.subscribers.set(chatId, '15m');
-                    this.bot?.sendMessage(chatId, "✅ Sozlandi: Faqat *15 minutlik* o'rta muddatli signallar yuboriladi.", { parse_mode: 'Markdown' });
-                } else if (text === this.BUTTONS.ALL) {
-                    this.subscribers.set(chatId, 'ALL');
-                    this.bot?.sendMessage(chatId, "✅ Sozlandi: Hamma turdagi va hamma vaqtdagi signallar yuboriladi.", { parse_mode: 'Markdown' });
                 }
                 this.saveSubscribers();
             });
@@ -99,8 +88,8 @@ export class AlertService {
             parse_mode: 'Markdown',
             reply_markup: {
                 keyboard: [
-                    [{ text: this.BUTTONS.TF_1M }, { text: this.BUTTONS.TF_5M }, { text: this.BUTTONS.TF_15M }],
-                    [{ text: this.BUTTONS.ALL }]
+                    [ { text: this.BUTTONS.TF_5M } ],
+                    
                 ],
                 resize_keyboard: true
             }
