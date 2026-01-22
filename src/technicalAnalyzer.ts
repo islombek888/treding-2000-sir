@@ -135,6 +135,35 @@ export class TechnicalAnalyzer {
         return atr;
     }
 
+    static analyzeTrendConfluence(candlesMap: Map<string, Candle[]>): 'BULLISH' | 'BEARISH' | 'NEUTRAL' {
+        const tfs: ('1m' | '5m' | '15m' | '1h')[] = ['1m', '5m', '15m', '1h'];
+        let bullishScores = 0;
+        let bearishScores = 0;
+
+        for (const tf of tfs) {
+            const candles = candlesMap.get(tf);
+            if (!candles || candles.length < 50) continue;
+
+            const closes = candles.map(c => c.close);
+            const ema20 = this.calculateEMA(closes, 20);
+            const ema50 = this.calculateEMA(closes, 50);
+
+            if (ema20.length === 0 || ema50.length === 0) continue;
+
+            const e20 = ema20[ema20.length - 1]!;
+            const e50 = ema50[ema50.length - 1]!;
+            const current = closes[closes.length - 1]!;
+
+            if (current > e20 && e20 > e50) bullishScores++;
+            if (current < e20 && e20 < e50) bearishScores++;
+        }
+
+        if (bullishScores >= 3) return 'BULLISH';
+        if (bearishScores >= 3) return 'BEARISH';
+
+        return 'NEUTRAL';
+    }
+
     static analyzeMacroStructure(candlesMap: Map<string, Candle[]>): { trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL'; target: number; duration: string } {
         // Use 1H or 4H candles (approximated by aggregating 1H) for macro
         const h1Candles = candlesMap.get('1h') || [];
