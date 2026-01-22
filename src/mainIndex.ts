@@ -1,16 +1,106 @@
 import { MarketDataService, type Timeframe } from './marketDataService.js';
-import { InstitutionalDecisionEngine, type InstitutionalSignal } from './institutionalDecisionEngine.js';
 import { AlertService } from './alertService.js';
-import { SignalManagerService } from './signalManagerService.js';
 import { TradingViewDataService } from './tradingViewDataService.js';
 import http from 'http';
+
+// Simple signal interfaces
+interface SimpleSignal {
+    symbol: string;
+    action: 'BUY' | 'SELL';
+    entry?: number;
+    stopLoss?: number;
+    takeProfit?: number[];
+    confidence?: number;
+    strategy?: string;
+}
+
+// Simple signal management without complex imports
+class SimpleSignalManager {
+    private lastDirection = new Map<string, 'BUY' | 'SELL' | null>();
+    
+    public checkDirectionChange(symbol: string, newDirection: 'BUY' | 'SELL'): boolean {
+        const lastDir = this.lastDirection.get(symbol);
+        if (lastDir === newDirection) {
+            return false; // Same direction - block
+        }
+        this.lastDirection.set(symbol, newDirection);
+        return true; // Direction changed - allow
+    }
+    
+    public getLastDirection(symbol: string): 'BUY' | 'SELL' | null {
+        return this.lastDirection.get(symbol) || null;
+    }
+}
+
+// Simple institutional decision engine
+class SimpleDecisionEngine {
+    public analyze(symbol: string, candles: any[]): SimpleSignal | null {
+        if (candles.length < 100) return null;
+        
+        const current = candles[candles.length - 1];
+        if (!current) return null;
+        
+        // Simple momentum analysis
+        const recent = candles.slice(-20);
+        const closes = recent.map(c => c.close);
+        const momentum = ((closes[closes.length - 1] - closes[0]) / closes[0]) * 100;
+        
+        // Generate signal based on momentum
+        if (Math.abs(momentum) > 0.3) {
+            const action = momentum > 0 ? 'BUY' : 'SELL';
+            const atr = this.calculateATR(candles, 14);
+            const risk = atr * 1.5;
+            
+            return {
+                symbol,
+                action,
+                entry: current.close,
+                stopLoss: action === 'BUY' ? current.close - risk : current.close + risk,
+                takeProfit: [
+                    action === 'BUY' ? current.close + risk : current.close - risk,
+                    action === 'BUY' ? current.close + (risk * 2) : current.close - (risk * 2)
+                ],
+                confidence: Math.min(85 + Math.abs(momentum) * 15, 95),
+                strategy: `🔥 Simple Momentum: ${momentum.toFixed(2)}%`
+            };
+        }
+        
+        return null;
+    }
+    
+    private calculateATR(candles: any[], period: number): number {
+        if (candles.length < period + 1) return 1.0;
+        
+        let trSum = 0;
+        for (let i = period; i < candles.length; i++) {
+            const current = candles[i];
+            const previous = candles[i - 1];
+            
+            if (!current || !previous) continue;
+            
+            const high = current.high || 0;
+            const low = current.low || 0;
+            const prevClose = previous.close || 0;
+            
+            const tr = Math.max(
+                high - low,
+                Math.abs(high - prevClose),
+                Math.abs(low - prevClose)
+            );
+            
+            trSum += tr;
+        }
+        
+        return candles.length > period ? trSum / (candles.length - period) : 1.0;
+    }
+}
 
 async function main() {
     const dataService = new MarketDataService();
     const tvService = new TradingViewDataService();
     const alertService = AlertService.getInstance();
-    const decisionEngine = new InstitutionalDecisionEngine(dataService);
-    const signalManager = new SignalManagerService(alertService);
+    const decisionEngine = new SimpleDecisionEngine();
+    const signalManager = new SimpleSignalManager();
     
     // FAQAT 5 DAQIQA SYMBOLS
     const symbols = ['XAUUSD', 'EURUSD'];
@@ -25,7 +115,7 @@ async function main() {
         return Math.round(Math.abs(diff));
     }
 
-    console.log("🚀 Institutional Multi-Asset Analyst Starting...");
+    console.log("🚀 Simple Multi-Asset Analyst Starting...");
     
     // Simple HTTP server for Render port binding
     const port = process.env.PORT || 3000;
@@ -47,9 +137,6 @@ async function main() {
             console.log(`✅ Loaded ${candles.length} candles for ${symbol} (${tf})`);
         }
     }
-
-    // State for tracking last signal direction per symbol
-    const lastSignalDirection = new Map<string, 'BUY' | 'SELL' | null>();
     
     // Main Autonomous Loop (Every 20 seconds for high frequency)
     setInterval(async () => {
@@ -65,52 +152,39 @@ async function main() {
                     continue;
                 }
 
-                // Institutional analysis
-                const signal = await decisionEngine.analyze(symbol);
+                // Simple analysis
+                const signal = decisionEngine.analyze(symbol, m5Candles);
                 
                 if (signal) {
-                    const action = signal.action === 'BUY' || signal.action === 'SELL' ? signal.action : 'BUY';
-                    
                     // 🚫 BIR HIL YO'NALISHDA SIGNAL BLOKIROVKASI
-                    const lastDirection = lastSignalDirection.get(symbol);
+                    const canSend = signalManager.checkDirectionChange(symbol, signal.action);
                     
-                    if (lastDirection === action) {
-                        console.log(`🚫 ${symbol}: Same direction signal blocked (${action} -> ${action})`);
-                        console.log(`   Waiting for direction change before sending new signal`);
+                    if (!canSend) {
+                        console.log(`🚫 ${symbol}: Same direction signal blocked (${signal.action})`);
+                        console.log(`   Last direction: ${signalManager.getLastDirection(symbol)}, Current: ${signal.action}`);
                         continue;
                     }
                     
                     // ✅ YO'NALISH O'ZGARGANDA SIGNAL BERISH
-                    console.log(`🎯 ${symbol}: Direction changed from ${lastDirection || 'NONE'} to ${action}`);
+                    console.log(`🎯 ${symbol}: Direction changed to ${signal.action} - SENDING SIGNAL`);
                     
-                    // Signal manager orqali yuborish
-                    const canSend = await signalManager.processSignal(signal);
+                    // Signal yuborish
+                    const pips = signal.stopLoss && signal.entry ? 
+                        getPipValue(symbol, Math.abs(signal.entry - signal.stopLoss)) : 0;
                     
-                    if (canSend) {
-                        // Yo'nalishni saqlash
-                        lastSignalDirection.set(symbol, action);
-                        
-                        // Signal yuborish
-                        const pips = signal.stopLoss && signal.entry ? 
-                            getPipValue(symbol, Math.abs(signal.entry - signal.stopLoss)) : 0;
-                        
-                        await alertService.sendSignal({
-                            symbol: signal.symbol,
-                            direction: action,
-                            price: signal.entry || 0,
-                            pips: pips,
-                            confidence: signal.confidence || 0,
-                            reason: signal.strategy ? [signal.strategy] : [],
-                            atr: 0,
-                            strategy: signal.strategy || '',
-                            timeframe: '5m',
-                            chart: signal.chart
-                        });
-                        
-                        console.log(`✅ ${symbol}: ${action} signal sent successfully`);
-                    } else {
-                        console.log(`⚠️ ${symbol}: Signal blocked by manager (conflict/limit)`);
-                    }
+                    await alertService.sendSignal({
+                        symbol: signal.symbol,
+                        direction: signal.action,
+                        price: signal.entry || 0,
+                        pips: pips,
+                        confidence: signal.confidence || 0,
+                        reason: signal.strategy ? [signal.strategy] : [],
+                        atr: 0,
+                        strategy: signal.strategy || '',
+                        timeframe: '5m'
+                    });
+                    
+                    console.log(`✅ ${symbol}: ${signal.action} signal sent successfully`);
                 } else {
                     console.log(`ℹ️ ${symbol}: No signal generated (filters not met)`);
                 }
@@ -119,8 +193,6 @@ async function main() {
                 console.error(`❌ Error analyzing ${symbol}:`, error?.message || error);
             }
         }
-        
-        console.log(`📊 Active signals: ${Array.from(signalManager.getActiveSignals().keys()).join(', ')}`);
         
     }, 20000); // Every 20 seconds
 
@@ -147,7 +219,7 @@ async function main() {
     console.log("   • Only 5-minute timeframe analysis");
     console.log("   • Block same-direction consecutive signals");
     console.log("   • Only send signals when direction changes");
-    console.log("   • Advanced institutional filters applied");
+    console.log("   • Simple momentum analysis");
 }
 
 // Error handling

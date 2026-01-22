@@ -1,16 +1,15 @@
 import { MarketDataService } from './marketDataService.js';
-import { InstitutionalDecisionEngine } from './institutionalDecisionEngine.js';
+import { DecisionEngine } from './decisionEngine.js';
 import { AlertService } from './alertService.js';
-import { SignalManagerService } from './signalManagerService.js';
+import { VolatilityEngine } from './volatilityEngine.js';
+import { ChartRenderer } from './chartRenderer.js';
+import { SignalArchiveService } from './signalArchiveService.js';
 import { TradingViewDataService } from './tradingViewDataService.js';
 import http from 'http';
 async function main() {
     const dataService = new MarketDataService();
     const tvService = new TradingViewDataService();
     const alertService = AlertService.getInstance();
-    const decisionEngine = new InstitutionalDecisionEngine(dataService);
-    const signalManager = new SignalManagerService(alertService);
-    // FAQAT 5 DAQIQA SYMBOLS
     const symbols = ['XAUUSD', 'EURUSD'];
     function getPipValue(symbol, diff) {
         if (symbol === 'XAUUSD') {
@@ -30,110 +29,116 @@ async function main() {
     }).listen(port, () => {
         console.log(`🌐 Web server listening on port ${port}`);
     });
-    // Initial Seed: Fetch historical data to populate engine
-    console.log("📥 Seeding market data from TradingView...");
+    // Initial Seed: Fetch historical data to populate the engine
+    console.log("📥 Seeding market data from Finnhub...");
     for (const symbol of symbols) {
-        // FAQAT 5 DAQIQA DATA
-        const timeframes = ['5m']; // Faqat 5 daqiqa
+        const timeframes = ['1m', '5m', '15m', '1h'];
         for (const tf of timeframes) {
             const candles = await tvService.fetchCandles(symbol, tf, 250);
             candles.forEach(c => dataService.addCandle(symbol, tf, c));
             console.log(`✅ Loaded ${candles.length} candles for ${symbol} (${tf})`);
         }
     }
-    // State for tracking last signal direction per symbol
-    const lastSignalDirection = new Map();
+    // State for Cooldown tracking per symbol and timeframe
+    const signalCooldowns = new Map();
+    const activeTrades = new Map();
     // Main Autonomous Loop (Every 20 seconds for high frequency)
     setInterval(async () => {
         console.log(`\n🔍 Analysis Loop: ${new Date().toLocaleTimeString()}`);
         for (const symbol of symbols) {
-            try {
-                // FAQAT 5 DAQIQA DA ANALIZ
-                const m5Candles = dataService.getCandles(symbol, '5m');
-                if (m5Candles.length < 100) {
-                    console.log(`❌ Insufficient 5m data for ${symbol}`);
-                    continue;
-                }
-                // Institutional analysis
-                const signal = await decisionEngine.analyze(symbol);
-                if (signal) {
-                    const action = signal.action === 'BUY' || signal.action === 'SELL' ? signal.action : 'BUY';
-                    // 🚫 BIR HIL YO'NALISHDA SIGNAL BLOKIROVKASI
-                    const lastDirection = lastSignalDirection.get(symbol);
-                    if (lastDirection === action) {
-                        console.log(`🚫 ${symbol}: Same direction signal blocked (${action} -> ${action})`);
-                        console.log(`   Waiting for direction change before sending new signal`);
+            const timeframes = ['1m', '5m', '15m'];
+            for (const tf of timeframes) {
+                try {
+                    const latestCandles = await tvService.fetchCandles(symbol, tf, 50);
+                    if (latestCandles.length === 0)
                         continue;
+                    // Sync data service
+                    latestCandles.forEach(c => dataService.addCandle(symbol, tf, c));
+                    const currentPrice = dataService.getLatestPrice(symbol);
+                    if (!currentPrice)
+                        continue;
+                    // Check Active Trade Status (TP/SL/Reversal)
+                    const activeTradeKey = `${symbol}_${tf}`;
+                    const activeTrade = activeTrades.get(activeTradeKey);
+                    if (activeTrade) {
+                        // Check Take Profit
+                        if ((activeTrade.direction === 'BUY' && currentPrice >= activeTrade.tp) ||
+                            (activeTrade.direction === 'SELL' && currentPrice <= activeTrade.tp)) {
+                            const gain = getPipValue(symbol, currentPrice - activeTrade.entry);
+                            alertService.sendTakeProfitAlert(symbol, currentPrice, Math.abs(gain));
+                            activeTrades.delete(activeTradeKey);
+                            continue; // Trade closed
+                        }
                     }
-                    // ✅ YO'NALISH O'ZGARGANDA SIGNAL BERISH
-                    console.log(`🎯 ${symbol}: Direction changed from ${lastDirection || 'NONE'} to ${action}`);
-                    // Signal manager orqali yuborish
-                    const canSend = await signalManager.processSignal(signal);
-                    if (canSend) {
-                        // Yo'nalishni saqlash
-                        lastSignalDirection.set(symbol, action);
-                        // Signal yuborish
-                        const pips = signal.stopLoss && signal.entry ?
-                            getPipValue(symbol, Math.abs(signal.entry - signal.stopLoss)) : 0;
-                        await alertService.sendSignal({
-                            symbol: signal.symbol,
-                            direction: action,
-                            price: signal.entry || 0,
-                            pips: pips,
-                            confidence: signal.confidence || 0,
-                            reason: signal.strategy ? [signal.strategy] : [],
-                            atr: 0,
-                            strategy: signal.strategy || '',
-                            timeframe: '5m',
-                            chart: signal.chart
-                        });
-                        console.log(`✅ ${symbol}: ${action} signal sent successfully`);
-                    }
-                    else {
-                        console.log(`⚠️ ${symbol}: Signal blocked by manager (conflict/limit)`);
+                    // Run the decision engine
+                    const decision = await DecisionEngine.decide(dataService, symbol, tf);
+                    if (decision) {
+                        const candles = dataService.getCandles(symbol, tf);
+                        if (candles.length < 12)
+                            continue;
+                        const lastClose = currentPrice;
+                        const prevClose = candles[candles.length - 2]?.close || candles[candles.length - 1].close;
+                        const pips = getPipValue(symbol, lastClose - prevClose);
+                        const direction = lastClose > prevClose ? 'BUY' : 'SELL';
+                        // Cooldown check (Reduced for 1m scalping)
+                        const cooldownKey = `${symbol}_${tf}`;
+                        const lastSignal = signalCooldowns.get(cooldownKey);
+                        const now = Date.now();
+                        const cooldownLimit = tf === '1m' ? 60000 : 5 * 60000; // 1 min for 1m, 5 min for others
+                        if (lastSignal && (now - lastSignal.time) < cooldownLimit)
+                            continue;
+                        // REVERSAL CHECK
+                        if (activeTrade && activeTrade.direction !== direction) {
+                            alertService.sendClosureAlert(symbol, activeTrade.direction, currentPrice, "Trend Reversed (New Signal)");
+                            activeTrades.delete(activeTradeKey);
+                        }
+                        // Lower thresholds: 1m (10 pts = 1 pip), 5m/15m (Standard)
+                        // User requested 1 pips sensitivity
+                        const forexThreshold = tf === '1m' ? 1 : 3;
+                        const goldThreshold = tf === '1m' ? 10 : 30; // 10 points = 1 pip
+                        const threshold = symbol === 'EURUSD' ? forexThreshold : goldThreshold;
+                        if (Math.abs(pips) >= threshold) {
+                            const atr = VolatilityEngine.calculateATR(candles);
+                            const currentAtr = atr[atr.length - 1] || 0;
+                            const isBuy = direction === 'BUY';
+                            const sl = isBuy ? lastClose - (currentAtr * 1.5) : lastClose + (currentAtr * 1.5);
+                            const tp = isBuy ? lastClose + (currentAtr * 2.0) : lastClose - (currentAtr * 2.0);
+                            const renderer = new ChartRenderer();
+                            const chart = await renderer.render(symbol, candles.slice(-12), {
+                                entry: lastClose,
+                                sl,
+                                tp,
+                                direction: direction
+                            }, {
+                                bos: { price: lastClose, type: isBuy ? 'BULLISH' : 'BEARISH' }
+                            });
+                            signalCooldowns.set(cooldownKey, { time: now, direction });
+                            activeTrades.set(activeTradeKey, { direction, entry: lastClose, tp, sl, time: now });
+                            alertService.sendSignal({
+                                symbol,
+                                direction: direction,
+                                price: lastClose,
+                                pips: pips,
+                                confidence: decision.totalScore,
+                                reason: decision.confluenceList,
+                                atr: currentAtr,
+                                strategy: `${decision.strategy} (${tf})`,
+                                chart,
+                                timeframe: tf,
+                                macro: decision.macro
+                            });
+                            console.log(`🎯 [${tf}] SIGNAL SENT for ${symbol}: ${direction} at ${lastClose}`);
+                        }
                     }
                 }
-                else {
-                    console.log(`ℹ️ ${symbol}: No signal generated (filters not met)`);
+                catch (error) {
+                    console.error(`❌ Error processing ${symbol} (${tf}):`, error);
                 }
-            }
-            catch (error) {
-                console.error(`❌ Error analyzing ${symbol}:`, error?.message || error);
             }
         }
-        console.log(`📊 Active signals: ${Array.from(signalManager.getActiveSignals().keys()).join(', ')}`);
-    }, 20000); // Every 20 seconds
-    // Add new candle data simulation
-    setInterval(async () => {
-        for (const symbol of symbols) {
-            try {
-                const candles = await tvService.fetchCandles(symbol, '5m', 1);
-                if (candles.length > 0) {
-                    const newCandle = candles[0];
-                    if (newCandle) {
-                        dataService.addCandle(symbol, '5m', newCandle);
-                        console.log(`📈 ${symbol}: New 5m candle added`);
-                    }
-                }
-            }
-            catch (error) {
-                console.log(`⚠️ Failed to fetch new candle for ${symbol}:`, error?.message || error);
-            }
-        }
-    }, 300000); // Every 5 minutes
-    console.log("🎯 Bot is now running with 5-minute only signals and direction filtering");
-    console.log("📋 Rules:");
-    console.log("   • Only 5-minute timeframe analysis");
-    console.log("   • Block same-direction consecutive signals");
-    console.log("   • Only send signals when direction changes");
-    console.log("   • Advanced institutional filters applied");
+    }, 20000);
 }
-// Error handling
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+main().catch(error => {
+    console.error("💥 System Crash:", error);
 });
-process.on('uncaughtException', (error) => {
-    console.error('Uncaught Exception:', error);
-});
-main().catch(console.error);
-//# sourceMappingURL=mainIndex.js.map
+//# sourceMappingURL=index.js.map
