@@ -9,6 +9,11 @@ export interface SignalData {
     strategy: string;
     chart?: Buffer;
     timeframe: string;
+    macro?: {
+        trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+        target: number;
+        duration: string;
+    };
 }
 export declare class AlertService {
     private static instance;

@@ -3,18 +3,30 @@ export class ProbabilityEngine {
         let score = 0;
         const confluenceList = [];
         let strategy = 'Universal Institutional Model';
-        // 1. Technical Confluence (35%) - Multi-tf EMA
+        // 1. Technical Confluence (25%) - Multi-tf EMA
         if (analysis.ta === 'BULLISH' || analysis.ta === 'BEARISH') {
-            score += 35;
+            score += 25;
             confluenceList.push('Institutional Trend (EMA Multi-TF)');
             strategy = 'Asset Trend Continuation Pro';
         }
         else if (analysis.ta === 'NEUTRAL') {
             // Give partial credit for neutral/mixed trend if other factors exist
-            score += 15;
+            score += 10;
             confluenceList.push('Secondary Trend Support');
         }
-        // 2. Structure Confluence (40%) - BOS/HH/LL
+        // 2. Macro Trend Alignment (20%) - NEW
+        if (analysis.macro.trend !== 'NEUTRAL') {
+            if (analysis.ta === analysis.macro.trend) {
+                score += 20;
+                confluenceList.push(`Aligned with Macro Trend (${analysis.macro.trend})`);
+            }
+            else if (analysis.ta !== 'NEUTRAL' && analysis.ta !== analysis.macro.trend) {
+                // Severe penalty for trading against macro trend
+                score -= 30;
+                confluenceList.push(`⚠️ AGAINST MACRO TREND (${analysis.macro.trend})`);
+            }
+        }
+        // 3. Structure Confluence (25%) - BOS/HH/LL
         if (analysis.struct.bos) {
             score += 25;
             confluenceList.push('Break of Structure (BOS)');
@@ -24,19 +36,19 @@ export class ProbabilityEngine {
             score += 10;
             confluenceList.push(`Market Structure (${analysis.struct.type})`);
         }
-        // 3. Volatility Confluence (15%) - expansion
+        // 4. Volatility Confluence (15%) - expansion
         if (analysis.vol.expanding) {
             score += 15;
             confluenceList.push('Volatility Expansion (ATR)');
         }
-        // 4. Divergence (15%)
+        // 5. Divergence (15%)
         if (analysis.divergence !== 'NONE') {
             score += 15;
             confluenceList.push(`RSI ${analysis.divergence} Divergence`);
         }
-        // 5. Channel (15%)
+        // 6. Channel (10%)
         if (analysis.channel !== 'NONE') {
-            score += 15;
+            score += 10;
             confluenceList.push(`Channel Alignment (${analysis.channel})`);
         }
         // 6. News Filter (Mandatory)

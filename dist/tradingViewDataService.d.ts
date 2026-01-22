@@ -6,6 +6,7 @@ import { type Candle, type Timeframe } from './marketDataService.js';
  */
 export declare class TradingViewDataService {
     private useSimulation;
+    private useBinance;
     private simulationData;
     constructor();
     /**

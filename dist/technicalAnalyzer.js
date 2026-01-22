@@ -122,32 +122,54 @@ export class TechnicalAnalyzer {
         }
         return atr;
     }
-    static analyzeTrendConfluence(candlesMap) {
-        const tfs = ['1m', '5m', '15m', '1h'];
-        let bullishScores = 0;
-        let bearishScores = 0;
-        for (const tf of tfs) {
-            const candles = candlesMap.get(tf);
-            if (!candles || candles.length < 50)
-                continue;
-            const closes = candles.map(c => c.close);
-            const ema20 = this.calculateEMA(closes, 20);
-            const ema50 = this.calculateEMA(closes, 50);
-            if (ema20.length === 0 || ema50.length === 0)
-                continue;
-            const e20 = ema20[ema20.length - 1];
-            const e50 = ema50[ema50.length - 1];
-            const current = closes[closes.length - 1];
-            if (current > e20 && e20 > e50)
-                bullishScores++;
-            if (current < e20 && e20 < e50)
-                bearishScores++;
+    static analyzeMacroStructure(candlesMap) {
+        // Use 1H or 4H candles (approximated by aggregating 1H) for macro
+        const h1Candles = candlesMap.get('1h') || [];
+        if (h1Candles.length < 50) {
+            return { trend: 'NEUTRAL', target: 0, duration: 'Unknown' };
         }
-        if (bullishScores >= 3)
-            return 'BULLISH';
-        if (bearishScores >= 3)
-            return 'BEARISH';
-        return 'NEUTRAL';
+        const closes = h1Candles.map(c => c.close);
+        const currentPrice = closes[closes.length - 1];
+        const ema50 = this.calculateEMA(closes, 50);
+        const ema20 = this.calculateEMA(closes, 20);
+        const e50 = ema50[ema50.length - 1] || currentPrice;
+        const e20 = ema20[ema20.length - 1] || currentPrice;
+        // 1. Determine Global Trend
+        let trend = 'NEUTRAL';
+        if (currentPrice > e20 && e20 > e50)
+            trend = 'BULLISH';
+        else if (currentPrice < e20 && e20 < e50)
+            trend = 'BEARISH';
+        // 2. Calculate Target Price (Based on ATR projection and pivots)
+        const atr = this.calculateATR(closes, 14);
+        const currentAtr = atr[atr.length - 1] || 0;
+        const dailyRange = currentAtr * 24; // Approx daily range
+        let target = 0;
+        if (trend === 'BULLISH') {
+            // Find next resistance (local high)
+            const recentHigh = Math.max(...h1Candles.slice(-20).map(c => c.high));
+            target = recentHigh > currentPrice ? recentHigh : currentPrice + (dailyRange * 0.5);
+            // If already at high, project further
+            if (target - currentPrice < currentAtr)
+                target = currentPrice + (currentAtr * 3);
+        }
+        else if (trend === 'BEARISH') {
+            const recentLow = Math.min(...h1Candles.slice(-20).map(c => c.low));
+            target = recentLow < currentPrice ? recentLow : currentPrice - (dailyRange * 0.5);
+            if (currentPrice - target < currentAtr)
+                target = currentPrice - (currentAtr * 3);
+        }
+        else {
+            target = currentPrice;
+        }
+        // 3. Estimate Duration
+        // We look at how many candles it usually takes to move such distance
+        const distance = Math.abs(target - currentPrice);
+        const avgCandleBody = closes.map((c, i) => i > 0 ? Math.abs(c - closes[i - 1]) : 0).reduce((a, b) => a + b, 0) / closes.length;
+        const candlesToTarget = Math.ceil(distance / avgCandleBody);
+        const hours = Math.max(1, Math.min(candlesToTarget, 8)); // Cap between 1 and 8 hours
+        const duration = `~${hours}-${hours + 2} soat`;
+        return { trend, target, duration };
     }
 }
 //# sourceMappingURL=technicalAnalyzer.js.map

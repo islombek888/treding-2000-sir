@@ -46,14 +46,22 @@ export class DecisionEngine {
             const news = NewsAnalyzer.checkNewsRisk();
             const channel = TechnicalAnalyzer.detectChannel(candles1m);
 
+            // NEW: Macro Structure Analysis
+            const macro = TechnicalAnalyzer.analyzeMacroStructure(candlesMap);
+
             const result = ProbabilityEngine.calculate({
                 ta,
                 struct,
                 vol,
                 divergence,
                 news,
-                channel
+                channel,
+                macro // Passing macro analysis
             });
+
+            // Attach macro to result for final output
+            result.macro = macro;
+
             results.push(result);
             if (i < iterations - 1) await new Promise(res => setTimeout(res, 20));
         }

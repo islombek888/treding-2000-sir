@@ -6,6 +6,7 @@ import {} from './marketDataService.js';
  */
 export class TradingViewDataService {
     useSimulation = false;
+    useBinance = true; // Flag to track if Binance is usable
     simulationData = new Map();
     constructor() {
         this.initializeSimulationData();
@@ -18,19 +19,24 @@ export class TradingViewDataService {
         if (this.useSimulation) {
             return this.getSimulatedCandles(symbol, tf, limit);
         }
-        // Try primary provider (Binance)
-        const binanceData = await this.fetchFromBinance(symbol, tf, limit);
-        if (binanceData.length > 0) {
-            return binanceData;
+        // Try primary provider (Binance) ONLY if it hasn't been blocked
+        if (this.useBinance) {
+            const binanceData = await this.fetchFromBinance(symbol, tf, limit);
+            if (binanceData.length > 0) {
+                return binanceData;
+            }
         }
-        // Try alternative providers
+        // Try alternative providers (Yahoo Finance)
+        // If Binance failed (or was skipped), we try Yahoo immediately
         const yahooData = await this.fetchFromYahooFinance(symbol, tf, limit);
         if (yahooData.length > 0) {
             return yahooData;
         }
         // If all real providers fail, fall back to simulation
-        console.warn(`[DataService] ⚠️ All providers failed for ${symbol}, switching to simulation mode`);
-        this.useSimulation = true;
+        if (!this.useSimulation) {
+            console.warn(`[DataService] ⚠️ All providers failed for ${symbol}, switching to simulation mode.`);
+            this.useSimulation = true;
+        }
         return this.getSimulatedCandles(symbol, tf, limit);
     }
     async fetchFromBinance(symbol, tf, limit) {
@@ -50,6 +56,11 @@ export class TradingViewDataService {
                     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
                 }
             });
+            if (response.status === 451) {
+                console.warn(`[DataService] 🌍 Binance blocked in this region (HTTP 451). Switching to Yahoo Finance.`);
+                this.useBinance = false; // Permanently disable Binance for this session
+                return [];
+            }
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }

@@ -10,8 +10,6 @@ export class AlertService {
     subscribersFilePath = path.resolve(process.cwd(), 'subscribers.json');
     // Button Labels
     BUTTONS = {
-        STANDARD: '📊 50+ / 70 Pips',
-        ULTRA: '🔥 Juda kuchli (200+ Pips)',
         TF_1M: '⏱️ 1m Focus',
         TF_5M: '⏱️ 5m Focus',
         TF_15M: '⏱️ 15m Focus',
@@ -47,15 +45,7 @@ export class AlertService {
                     this.bot?.sendMessage(chatId, statusText, { parse_mode: 'Markdown' });
                     return;
                 }
-                if (text === this.BUTTONS.STANDARD) {
-                    this.subscribers.set(chatId, 'STANDARD');
-                    this.bot?.sendMessage(chatId, "✅ Sozlandi: Endi sizga *50+ pips*lik barcha signallar yuboriladi.", { parse_mode: 'Markdown' });
-                }
-                else if (text === this.BUTTONS.ULTRA) {
-                    this.subscribers.set(chatId, 'ULTRA');
-                    this.bot?.sendMessage(chatId, "✅ Sozlandi: Endi sizga faqat *200+ pips*lik o'ta kuchli signallar yuboriladi.", { parse_mode: 'Markdown' });
-                }
-                else if (text === this.BUTTONS.TF_1M) {
+                if (text === this.BUTTONS.TF_1M) {
                     this.subscribers.set(chatId, '1m');
                     this.bot?.sendMessage(chatId, "✅ Sozlandi: Faqat *1 minutlik* aniq va tezkor signallar yuboriladi.", { parse_mode: 'Markdown' });
                 }
@@ -81,7 +71,6 @@ export class AlertService {
             reply_markup: {
                 keyboard: [
                     [{ text: this.BUTTONS.TF_1M }, { text: this.BUTTONS.TF_5M }, { text: this.BUTTONS.TF_15M }],
-                    [{ text: this.BUTTONS.STANDARD }, { text: this.BUTTONS.ULTRA }],
                     [{ text: this.BUTTONS.ALL }]
                 ],
                 resize_keyboard: true
@@ -123,9 +112,27 @@ export class AlertService {
             riskLevel = 'PAST';
         else if (signal.confidence < 88)
             riskLevel = 'YUQORI';
-        // Expected Duration (Simplified for user)
-        const minTime = Math.floor(signal.pips / 2);
-        const maxTime = Math.floor(signal.pips * 1.5);
+        // Expected Duration based on Timeframe
+        let minTime = 5;
+        let maxTime = 15;
+        // Clean timeframe string (remove emoji if present, lower case)
+        const tf = (signal.timeframe || '5m').replace(/[^a-z0-9]/gi, '').toLowerCase();
+        if (tf === '1m') {
+            minTime = 3;
+            maxTime = 10;
+        }
+        else if (tf === '5m') {
+            minTime = 15;
+            maxTime = 40;
+        }
+        else if (tf === '15m') {
+            minTime = 45;
+            maxTime = 90;
+        }
+        else if (tf === '1h') {
+            minTime = 60;
+            maxTime = 240;
+        }
         // Dynamic SL/TP calculation (Same as chart)
         const slMult = 1.6;
         const tpMult = 2.4;
@@ -143,6 +150,19 @@ export class AlertService {
         ║ TP (🎯): ${tp.toFixed(digits).padEnd(20)}║
         ╚═════════════════════════════╝
         `;
+        let timeLabel = "Kutilayotgan vaqt";
+        if (tf === '1m')
+            timeLabel = "⚡ Tezkor Natija (10 daqiqa ichida)";
+        // Macro formatting
+        let macroSection = "";
+        if (signal.macro && signal.macro.trend !== 'NEUTRAL') {
+            const trendIcon = signal.macro.trend === 'BULLISH' ? '🟢' : '🔴';
+            macroSection = `
+🌍 *Global Trend (1H):* ${trendIcon} ${signal.macro.trend}
+🎯 *Asosiy Target:* ${signal.macro.target.toFixed(digits)}
+⏳ *Bashorat:* ${signal.macro.duration}
+`;
+        }
         const message = `
 🏛️ *${signal.symbol} Institutional Tahlil* 🏛️
 
@@ -154,8 +174,8 @@ ${cardBody.trim()}
 📊 *Kutilayotgan harakat:* +${signal.pips} Pips
 🛡️ *Ishonch:* ${signal.confidence}%
 ⚖️ *Xavf darajasi:* ${riskLevel}
-🕒 *Kutilayotgan vaqt:* ${minTime}-${maxTime} minut
-
+🕒 *${timeLabel}:* ${minTime}-${maxTime} minut
+${macroSection}
 🧠 *Asos:* 
 ${signal.reason.map(r => `• ${r === 'Institutional Trend (EMA Multi-TF)' ? 'Trend yo\'nalishi (M5/M15)' :
             r === 'Break of Structure (BOS)' ? 'Struktura buzilishi (BOS)' :
