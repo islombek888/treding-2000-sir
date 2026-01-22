@@ -23,6 +23,10 @@ function createSignalMessage(signal: SimpleSignal, pips: number): string {
     const takeProfit = signal.takeProfit || [];
     const confidence = signal.confidence || 0;
     
+    // Vaqtni hisoblash (5 daqiqa timeframe uchun)
+    const expectedTime = confidence > 85 ? '5-15 daqiqa' : confidence > 75 ? '10-25 daqiqa' : '15-30 daqiqa';
+    const maxTime = confidence > 85 ? '20 daqiqa' : confidence > 75 ? '30 daqiqa' : '45 daqiqa';
+    
     let message = `🚀 **${action} SIGNAL** 🚀\n\n`;
     message += `📊 **Signal Tafsilotlari:**\n`;
     message += `• Symbol: ${signal.symbol}\n`;
@@ -39,8 +43,10 @@ function createSignalMessage(signal: SimpleSignal, pips: number): string {
     message += `• Signal 5 daqiqa ichida ishga tushishi mumkin\n\n`;
     
     message += `🎯 **CHIQISH VAQTI:**\n`;
+    message += `• **Kutilayotgan vaqt:** ${expectedTime} ichida\n`;
+    message += `• **Maksimal vaqt:** ${maxTime} ichida yoping!\n`;
     if (takeProfit.length > 0) {
-        message += `• 1-chi TP ga yetganda: ${action === 'BUY' ? 'yarmini yoping' : 'yarmini yoping'}\n`;
+        message += `• 1-chi TP ga yetganda: yarmini yoping\n`;
         message += `• 2-chi TP ga yetganda: **to'liq yoping**\n`;
         message += `• Stop Loss ishlasa: **darhol yoping**\n\n`;
     }
@@ -48,7 +54,8 @@ function createSignalMessage(signal: SimpleSignal, pips: number): string {
     message += `⚠️ **MUHIM ESLATMA:**\n`;
     message += `• Risk: 1-2% dan oshmang\n`;
     message += `• Signal faqat 5 daqiqa timeframe uchun\n`;
-    message += `• Qarama-qarshi signal kelsa: darhol yoping!\n\n`;
+    message += `• Qarama-qarshi signal kelsa: darhol yoping!\n`;
+    message += `• ${maxTime} o'tganda bo'lsa ham yoping!\n\n`;
     
     message += `📈 **Kutilayotgan natija:** ${confidence > 85 ? 'Yuqori' : confidence > 75 ? 'O\'rta' : 'Past'}\n`;
     message += `🎯 **Strategiya:** ${signal.strategy || 'Momentum Analysis'}`;
