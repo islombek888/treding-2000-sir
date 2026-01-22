@@ -1,6 +1,8 @@
 import { type Candle } from './marketDataService.js';
 export declare class TechnicalAnalyzer {
     static calculateEMA(data: number[], period: number): number[];
+    static calculateSlope(ema: number[], period?: number): number;
+    static detectImpulseMomentum(candles: Candle[], ema20: number[]): 'STRONG_IMPULSE' | 'WEAK' | 'NONE';
     static calculateRSI(data: number[], period?: number): number[];
     static detectDivergence(prices: number[], rsi: number[], lookback?: number): 'BULLISH' | 'BEARISH' | 'NONE';
     static detectChannel(candles: Candle[]): 'ASCENDING' | 'DESCENDING' | 'NONE';

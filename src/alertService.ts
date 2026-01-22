@@ -35,16 +35,8 @@ export class AlertService {
         TF_1M: '⏱️ 1m Focus',
         TF_5M: '⏱️ 5m Focus',
         TF_15M: '⏱️ 15m Focus',
-        ALL: '🌐 Hamma turdagi',
-        ANALYZE_IMAGE: '📸 Rasm Tahlil (AI)'
+        ALL: '🌐 Hamma turdagi'
     };
-
-    private analysisCallback: ((symbol: string) => Promise<any>) | null = null;
-    private userStates = new Map<number, { step: 'WAITING_SYMBOL' }>();
-
-    public setAnalysisCallback(callback: (symbol: string) => Promise<any>) {
-        this.analysisCallback = callback;
-    }
 
     private constructor() {
         const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -68,44 +60,11 @@ export class AlertService {
                 }
             });
 
-            // Handle Review
-            this.bot.on('photo', (msg) => {
-                const chatId = msg.chat.id;
-                if (!msg.caption) {
-                    this.userStates.set(chatId, { step: 'WAITING_SYMBOL' });
-                    this.bot?.sendMessage(chatId, "📉 *Rasm qabul qilindi!*\n\nIltimos, ushbu grafik qaysi aktivga tegishli ekanligini yozing:\n\n1. *XAUUSD* (Oltin)\n2. *EURUSD* (Yevro)", { parse_mode: "Markdown" });
-                } else {
-                    // Try to limit auto-detect from caption if needed, but for now force manual selection for accuracy or check caption
-                    const cap = msg.caption.toUpperCase();
-                    if (cap.includes('XAU') || cap.includes('GOLD')) this.runAnalysis(chatId, 'XAUUSD');
-                    else if (cap.includes('EUR')) this.runAnalysis(chatId, 'EURUSD');
-                    else {
-                        this.userStates.set(chatId, { step: 'WAITING_SYMBOL' });
-                        this.bot?.sendMessage(chatId, "📉 *Rasm qabul qilindi!*\nIltimos, aktiv nomini yozing (XAUUSD yoki EURUSD):", { parse_mode: "Markdown" });
-                    }
-                }
-            });
-
             this.bot.on('message', async (msg) => {
                 const chatId = msg.chat.id;
                 const text = msg.text;
 
                 if (!text) return;
-
-                // Handle State
-                const state = this.userStates.get(chatId);
-                if (state && state.step === 'WAITING_SYMBOL') {
-                    const symbol = text.toUpperCase().replace(/[^A-Z]/g, '');
-                    if (symbol.includes('XAU') || symbol.includes('GOLD')) {
-                        await this.runAnalysis(chatId, 'XAUUSD');
-                    } else if (symbol.includes('EUR')) {
-                        await this.runAnalysis(chatId, 'EURUSD');
-                    } else {
-                        this.bot?.sendMessage(chatId, "⚠️ Iltimos, faqat *XAUUSD* yoki *EURUSD* deb yozing.");
-                    }
-                    this.userStates.delete(chatId);
-                    return;
-                }
 
                 if (text === '/status') {
                     // ... existing status logic
@@ -117,9 +76,7 @@ export class AlertService {
                     return;
                 }
 
-                if (text === this.BUTTONS.ANALYZE_IMAGE) {
-                    this.bot?.sendMessage(chatId, "📸 *Rasm Tahlili (AI Context)*\n\nIltimos, tahlil qilmoqchi bo'lgan grafikingizni rasm qilib yuboring. Men uni o'qib, sizga aniq bashorat beraman.");
-                } else if (text === this.BUTTONS.TF_1M) {
+                if (text === this.BUTTONS.TF_1M) {
                     this.subscribers.set(chatId, '1m');
                     this.bot?.sendMessage(chatId, "✅ Sozlandi: Faqat *1 minutlik* aniq va tezkor signallar yuboriladi.", { parse_mode: 'Markdown' });
                 } else if (text === this.BUTTONS.TF_5M) {
@@ -137,56 +94,11 @@ export class AlertService {
         }
     }
 
-    private async runAnalysis(chatId: number, symbol: string) {
-        if (!this.analysisCallback) {
-            this.bot?.sendMessage(chatId, "⚠️ Tizim xatoligi: Tahlil motori ulanmagan.");
-            return;
-        }
-
-        this.bot?.sendMessage(chatId, "⏳ *Sun'iy intellekt tahlil qilmoqda...* \n(Trend, Struktura va Volatillik o'rganilmoqda)", { parse_mode: "Markdown" });
-
-        try {
-            const result = await this.analysisCallback(symbol);
-            if (!result) {
-                this.bot?.sendMessage(chatId, "⚠️ Hozirgi bozor holati noaniq, aniq signal topilmadi.");
-                return;
-            }
-
-            // Generate Visual Breakdown
-            let trendIcon = '⚪';
-            if (result.macro?.trend === 'BULLISH') trendIcon = '🟢';
-            if (result.macro?.trend === 'BEARISH') trendIcon = '🔴';
-
-            const response = `
-📸 *VISUAL CHART ANALYSIS* 📸
-
-Aktiv: *${symbol}*
-Hozirgi Trend: ${trendIcon} *${result.macro?.trend || 'NEUTRAL'}*
-
-📊 *Strategik Bashorat:*
-• **Harakat:** ${result.macro?.trend === 'BULLISH' ? 'BUY (O\'sish kutilmoqda)' : result.macro?.trend === 'BEARISH' ? 'SELL (Tushish kutilmoqda)' : 'KUTISH (Range)'}
-• **Target Narx:** ${result.macro?.target?.toFixed(2) || '---'}
-• **Davomiyligi:** ${result.macro?.duration || '---'}
-
-🛡️ *Maslahat:*
-${result.isSafe ? "✅ Bozor xavfsiz, signalga kirish tavsiya qilinadi." : "⚠️ Ehtiyot bo'ling, yangiliklar yoki volatillik yuqori."}
-
-_Ushbu tahlil 20+ indikator va Institutional strukturaga asoslangan._
-`;
-            this.bot?.sendMessage(chatId, response, { parse_mode: "Markdown" });
-
-        } catch (e) {
-            console.error(e);
-            this.bot?.sendMessage(chatId, "❌ Tahlil qilishda xatolik yuz berdi.");
-        }
-    }
-
     private showMenu(chatId: number, text: string) {
         this.bot?.sendMessage(chatId, text, {
             parse_mode: 'Markdown',
             reply_markup: {
                 keyboard: [
-                    [{ text: this.BUTTONS.ANALYZE_IMAGE }],
                     [{ text: this.BUTTONS.TF_1M }, { text: this.BUTTONS.TF_5M }, { text: this.BUTTONS.TF_15M }],
                     [{ text: this.BUTTONS.ALL }]
                 ],
@@ -221,6 +133,43 @@ _Ushbu tahlil 20+ indikator va Institutional strukturaga asoslangan._
         }
     }
 
+
+
+    public sendClosureAlert(symbol: string, direction: string, price: number, reason: string) {
+        const message = `
+⚠️ *DIQQAT: POSITSIYANI YOPING* ⚠️
+
+Aktiv: *${symbol}*
+Holat: *${direction}* (Signal bekor qilindi)
+Narx: ${price}
+Sabab: ${reason}
+
+📉 *Tavsiya:* Darhol bitimni yoping va yangi signal kuting.
+`;
+        this.broadcastMessage(message, symbol);
+    }
+
+    public sendTakeProfitAlert(symbol: string, price: number, pips: number) {
+        const message = `
+✅ *TAKE PROFIT (FOYDA)* ✅
+
+Aktiv: *${symbol}*
+Narx: ${price}
+Sof Foyda: *+${pips} Pips*
+
+💰 *Tavsiya:* Foydani oling va bozordan chiqing.
+`;
+        this.broadcastMessage(message, symbol);
+    }
+
+    private broadcastMessage(message: string, symbol: string) {
+        this.subscribers.forEach((pref, chatId) => {
+            if (pref === 'ALL' || pref === '1m') { // Simple broadcast for now
+                this.bot?.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+            }
+        });
+    }
+
     public async sendSignal(signal: SignalData) {
         const isBuy = signal.direction === 'BUY';
         const digits = signal.symbol === 'EURUSD' ? 5 : 2;
@@ -230,22 +179,32 @@ _Ushbu tahlil 20+ indikator va Institutional strukturaga asoslangan._
         if (signal.confidence >= 93) riskLevel = 'PAST';
         else if (signal.confidence < 88) riskLevel = 'YUQORI';
 
-        // Expected Duration based on Timeframe
-        let minTime = 5;
-        let maxTime = 15;
+        // Dynamic Time Estimation based on ATR (Volatility)
+        // High ATR (High Volume) -> Faster moves -> Shorter duration
+        // Low ATR (Low Volume) -> Slower moves -> Longer duration
 
-        // Clean timeframe string (remove emoji if present, lower case)
+        let avgATR = 0.0001; // Default
+        if (signal.symbol === 'XAUUSD') avgATR = 1.5; // Approx 1m avg
+        else if (signal.symbol === 'EURUSD') avgATR = 0.00015;
+
+        const volatilityRatio = signal.atr / avgATR;
+        let speedFactor = 1.0;
+
+        if (volatilityRatio > 1.5) speedFactor = 0.5; // Fast Market
+        else if (volatilityRatio < 0.8) speedFactor = 1.5; // Slow Market
+
+        let minTime = Math.max(2, Math.round(5 * speedFactor));
+        let maxTime = Math.round(15 * speedFactor);
+
+        // Clean timeframe string
         const tf = (signal.timeframe || '5m').replace(/[^a-z0-9]/gi, '').toLowerCase();
 
         if (tf === '1m') {
-            minTime = 3;
-            maxTime = 10;
-        } else if (tf === '5m') {
-            minTime = 15;
-            maxTime = 40;
+            minTime = Math.max(2, Math.round(3 * speedFactor));
+            maxTime = Math.round(10 * speedFactor);
         } else if (tf === '15m') {
-            minTime = 45;
-            maxTime = 90;
+            minTime = Math.round(30 * speedFactor);
+            maxTime = Math.round(90 * speedFactor);
         } else if (tf === '1h') {
             minTime = 60;
             maxTime = 240;

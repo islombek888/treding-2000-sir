@@ -12,6 +12,30 @@ export class TechnicalAnalyzer {
         }
         return ema;
     }
+    // NEW: Calculate Angle/Slope of EMA to detect strong trends
+    static calculateSlope(ema, period = 5) {
+        if (ema.length < period + 1)
+            return 0;
+        const current = ema[ema.length - 1];
+        const prev = ema[ema.length - 1 - period];
+        return (current - prev) / period;
+    }
+    // NEW: Detect Impulse Momentum (Price moving away from EMA)
+    static detectImpulseMomentum(candles, ema20) {
+        if (candles.length < 5 || ema20.length < 5)
+            return 'NONE';
+        const lastCandle = candles[candles.length - 1];
+        const lastEma = ema20[ema20.length - 1];
+        // Check if price is significantly far from EMA20 (Momentum)
+        const diff = Math.abs(lastCandle.close - lastEma);
+        const atr = this.calculateATR(candles.map(c => c.close));
+        const currentATR = atr[atr.length - 1] || 0;
+        if (diff > currentATR * 1.5)
+            return 'STRONG_IMPULSE';
+        if (diff > currentATR * 0.8)
+            return 'WEAK';
+        return 'NONE';
+    }
     static calculateRSI(data, period = 14) {
         if (data.length <= period)
             return [];

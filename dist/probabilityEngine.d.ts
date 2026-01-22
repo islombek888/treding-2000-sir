@@ -28,6 +28,8 @@ export declare class ProbabilityEngine {
             target: number;
             duration: string;
         };
+        slope: number;
+        impulse: 'STRONG_IMPULSE' | 'WEAK' | 'NONE';
     }): ProbabilityResult;
 }
 //# sourceMappingURL=probabilityEngine.d.ts.map

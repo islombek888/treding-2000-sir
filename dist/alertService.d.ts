@@ -21,15 +21,13 @@ export declare class AlertService {
     private subscribers;
     private subscribersFilePath;
     private BUTTONS;
-    private analysisCallback;
-    private userStates;
-    setAnalysisCallback(callback: (symbol: string) => Promise<any>): void;
     private constructor();
-    private runAnalysis;
     private showMenu;
     static getInstance(): AlertService;
     private loadSubscribers;
     private saveSubscribers;
-    sendSignal(signal: SignalData): Promise<void>;
+    sendClosureAlert(symbol: string, direction: string, price: number, reason: string): void;
+    sendTakeProfitAlert(symbol: string, price: number, pips: number): void;
+    private broadcastMessage;
 }
 //# sourceMappingURL=alertService.d.ts.map

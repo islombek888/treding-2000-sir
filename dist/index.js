@@ -11,18 +11,6 @@ async function main() {
     const tvService = new TradingViewDataService();
     const alertService = AlertService.getInstance();
     const symbols = ['XAUUSD', 'EURUSD'];
-    // Wire up Image Analysis Callback
-    alertService.setAnalysisCallback(async (symbol) => {
-        console.log(`🖼️ Image Analysis requested for ${symbol}`);
-        // Ensure we have fresh data
-        const timeframes = ['1m', '5m', '15m', '1h'];
-        for (const tf of timeframes) {
-            const candles = await tvService.fetchCandles(symbol, tf, 250); // Get fresh look
-            candles.forEach(c => dataService.addCandle(symbol, tf, c));
-        }
-        // Run decision engine
-        return await DecisionEngine.decide(dataService, symbol);
-    });
     function getPipValue(symbol, diff) {
         if (symbol === 'XAUUSD') {
             return Math.round(Math.abs(diff) * 100);
@@ -53,6 +41,7 @@ async function main() {
     }
     // State for Cooldown tracking per symbol and timeframe
     const signalCooldowns = new Map();
+    const activeTrades = new Map();
     // Main Autonomous Loop (Every 20 seconds for high frequency)
     setInterval(async () => {
         console.log(`\n🔍 Analysis Loop: ${new Date().toLocaleTimeString()}`);
@@ -68,6 +57,19 @@ async function main() {
                     const currentPrice = dataService.getLatestPrice(symbol);
                     if (!currentPrice)
                         continue;
+                    // Check Active Trade Status (TP/SL/Reversal)
+                    const activeTradeKey = `${symbol}_${tf}`;
+                    const activeTrade = activeTrades.get(activeTradeKey);
+                    if (activeTrade) {
+                        // Check Take Profit
+                        if ((activeTrade.direction === 'BUY' && currentPrice >= activeTrade.tp) ||
+                            (activeTrade.direction === 'SELL' && currentPrice <= activeTrade.tp)) {
+                            const gain = getPipValue(symbol, currentPrice - activeTrade.entry);
+                            alertService.sendTakeProfitAlert(symbol, currentPrice, Math.abs(gain));
+                            activeTrades.delete(activeTradeKey);
+                            continue; // Trade closed
+                        }
+                    }
                     // Run the decision engine
                     const decision = await DecisionEngine.decide(dataService, symbol);
                     if (decision) {
@@ -78,18 +80,24 @@ async function main() {
                         const prevClose = candles[candles.length - 2]?.close || candles[candles.length - 1].close;
                         const pips = getPipValue(symbol, lastClose - prevClose);
                         const direction = lastClose > prevClose ? 'BUY' : 'SELL';
-                        // Cooldown check (5 mins for 1m, 15 for others)
+                        // Cooldown check (Reduced for 1m scalping)
                         const cooldownKey = `${symbol}_${tf}`;
                         const lastSignal = signalCooldowns.get(cooldownKey);
                         const now = Date.now();
-                        const cooldownLimit = tf === '1m' ? 5 * 60000 : 15 * 60000;
+                        const cooldownLimit = tf === '1m' ? 60000 : 5 * 60000; // 1 min for 1m, 5 min for others
                         if (lastSignal && (now - lastSignal.time) < cooldownLimit)
                             continue;
-                        // Lower thresholds: 1m (2 pips forex, 20 gold), 5m/15m (5 pips forex, 50 gold)
-                        const forexThreshold = tf === '1m' ? 2 : 5;
-                        const goldThreshold = tf === '1m' ? 20 : 50;
+                        // REVERSAL CHECK
+                        if (activeTrade && activeTrade.direction !== direction) {
+                            alertService.sendClosureAlert(symbol, activeTrade.direction, currentPrice, "Trend Reversed (New Signal)");
+                            activeTrades.delete(activeTradeKey);
+                        }
+                        // Lower thresholds: 1m (10 pts = 1 pip), 5m/15m (Standard)
+                        // User requested 1 pips sensitivity
+                        const forexThreshold = tf === '1m' ? 1 : 3;
+                        const goldThreshold = tf === '1m' ? 10 : 30; // 10 points = 1 pip
                         const threshold = symbol === 'EURUSD' ? forexThreshold : goldThreshold;
-                        if (pips >= threshold) {
+                        if (Math.abs(pips) >= threshold) {
                             const atr = VolatilityEngine.calculateATR(candles);
                             const currentAtr = atr[atr.length - 1] || 0;
                             const isBuy = direction === 'BUY';
@@ -105,6 +113,7 @@ async function main() {
                                 bos: { price: lastClose, type: isBuy ? 'BULLISH' : 'BEARISH' }
                             });
                             signalCooldowns.set(cooldownKey, { time: now, direction });
+                            activeTrades.set(activeTradeKey, { direction, entry: lastClose, tp, sl, time: now });
                             alertService.sendSignal({
                                 symbol,
                                 direction: direction,
@@ -115,7 +124,8 @@ async function main() {
                                 atr: currentAtr,
                                 strategy: `${decision.strategy} (${tf})`,
                                 chart,
-                                timeframe: tf
+                                timeframe: tf,
+                                macro: decision.macro
                             });
                             console.log(`🎯 [${tf}] SIGNAL SENT for ${symbol}: ${direction} at ${lastClose}`);
                         }
