@@ -14,6 +14,20 @@ async function main() {
 
     const symbols = ['XAUUSD', 'EURUSD'];
 
+    // Wire up Image Analysis Callback
+    alertService.setAnalysisCallback(async (symbol: string) => {
+        console.log(`🖼️ Image Analysis requested for ${symbol}`);
+        // Ensure we have fresh data
+        const timeframes: ('1m' | '5m' | '15m' | '1h')[] = ['1m', '5m', '15m', '1h'];
+        for (const tf of timeframes) {
+            const candles = await tvService.fetchCandles(symbol, tf, 250); // Get fresh look
+            candles.forEach(c => dataService.addCandle(symbol, tf, c));
+        }
+
+        // Run decision engine
+        return await DecisionEngine.decide(dataService, symbol);
+    });
+
     function getPipValue(symbol: string, diff: number): number {
         if (symbol === 'XAUUSD') {
             return Math.round(Math.abs(diff) * 100);

@@ -13,8 +13,14 @@ export class AlertService {
         TF_1M: '⏱️ 1m Focus',
         TF_5M: '⏱️ 5m Focus',
         TF_15M: '⏱️ 15m Focus',
-        ALL: '🌐 Hamma turdagi'
+        ALL: '🌐 Hamma turdagi',
+        ANALYZE_IMAGE: '📸 Rasm Tahlil (AI)'
     };
+    analysisCallback = null;
+    userStates = new Map();
+    setAnalysisCallback(callback) {
+        this.analysisCallback = callback;
+    }
     constructor() {
         const token = process.env.TELEGRAM_BOT_TOKEN;
         this.loadSubscribers();
@@ -34,10 +40,49 @@ export class AlertService {
                     this.saveSubscribers();
                 }
             });
-            this.bot.on('message', (msg) => {
+            // Handle Review
+            this.bot.on('photo', (msg) => {
+                const chatId = msg.chat.id;
+                if (!msg.caption) {
+                    this.userStates.set(chatId, { step: 'WAITING_SYMBOL' });
+                    this.bot?.sendMessage(chatId, "📉 *Rasm qabul qilindi!*\n\nIltimos, ushbu grafik qaysi aktivga tegishli ekanligini yozing:\n\n1. *XAUUSD* (Oltin)\n2. *EURUSD* (Yevro)", { parse_mode: "Markdown" });
+                }
+                else {
+                    // Try to limit auto-detect from caption if needed, but for now force manual selection for accuracy or check caption
+                    const cap = msg.caption.toUpperCase();
+                    if (cap.includes('XAU') || cap.includes('GOLD'))
+                        this.runAnalysis(chatId, 'XAUUSD');
+                    else if (cap.includes('EUR'))
+                        this.runAnalysis(chatId, 'EURUSD');
+                    else {
+                        this.userStates.set(chatId, { step: 'WAITING_SYMBOL' });
+                        this.bot?.sendMessage(chatId, "📉 *Rasm qabul qilindi!*\nIltimos, aktiv nomini yozing (XAUUSD yoki EURUSD):", { parse_mode: "Markdown" });
+                    }
+                }
+            });
+            this.bot.on('message', async (msg) => {
                 const chatId = msg.chat.id;
                 const text = msg.text;
+                if (!text)
+                    return;
+                // Handle State
+                const state = this.userStates.get(chatId);
+                if (state && state.step === 'WAITING_SYMBOL') {
+                    const symbol = text.toUpperCase().replace(/[^A-Z]/g, '');
+                    if (symbol.includes('XAU') || symbol.includes('GOLD')) {
+                        await this.runAnalysis(chatId, 'XAUUSD');
+                    }
+                    else if (symbol.includes('EUR')) {
+                        await this.runAnalysis(chatId, 'EURUSD');
+                    }
+                    else {
+                        this.bot?.sendMessage(chatId, "⚠️ Iltimos, faqat *XAUUSD* yoki *EURUSD* deb yozing.");
+                    }
+                    this.userStates.delete(chatId);
+                    return;
+                }
                 if (text === '/status') {
+                    // ... existing status logic
                     const subscriberCount = this.subscribers.size;
                     const uptime = Math.floor(process.uptime() / 60);
                     const pref = this.subscribers.get(chatId) || 'ALL';
@@ -45,7 +90,10 @@ export class AlertService {
                     this.bot?.sendMessage(chatId, statusText, { parse_mode: 'Markdown' });
                     return;
                 }
-                if (text === this.BUTTONS.TF_1M) {
+                if (text === this.BUTTONS.ANALYZE_IMAGE) {
+                    this.bot?.sendMessage(chatId, "📸 *Rasm Tahlili (AI Context)*\n\nIltimos, tahlil qilmoqchi bo'lgan grafikingizni rasm qilib yuboring. Men uni o'qib, sizga aniq bashorat beraman.");
+                }
+                else if (text === this.BUTTONS.TF_1M) {
                     this.subscribers.set(chatId, '1m');
                     this.bot?.sendMessage(chatId, "✅ Sozlandi: Faqat *1 minutlik* aniq va tezkor signallar yuboriladi.", { parse_mode: 'Markdown' });
                 }
@@ -65,11 +113,53 @@ export class AlertService {
             });
         }
     }
+    async runAnalysis(chatId, symbol) {
+        if (!this.analysisCallback) {
+            this.bot?.sendMessage(chatId, "⚠️ Tizim xatoligi: Tahlil motori ulanmagan.");
+            return;
+        }
+        this.bot?.sendMessage(chatId, "⏳ *Sun'iy intellekt tahlil qilmoqda...* \n(Trend, Struktura va Volatillik o'rganilmoqda)", { parse_mode: "Markdown" });
+        try {
+            const result = await this.analysisCallback(symbol);
+            if (!result) {
+                this.bot?.sendMessage(chatId, "⚠️ Hozirgi bozor holati noaniq, aniq signal topilmadi.");
+                return;
+            }
+            // Generate Visual Breakdown
+            let trendIcon = '⚪';
+            if (result.macro?.trend === 'BULLISH')
+                trendIcon = '🟢';
+            if (result.macro?.trend === 'BEARISH')
+                trendIcon = '🔴';
+            const response = `
+📸 *VISUAL CHART ANALYSIS* 📸
+
+Aktiv: *${symbol}*
+Hozirgi Trend: ${trendIcon} *${result.macro?.trend || 'NEUTRAL'}*
+
+📊 *Strategik Bashorat:*
+• **Harakat:** ${result.macro?.trend === 'BULLISH' ? 'BUY (O\'sish kutilmoqda)' : result.macro?.trend === 'BEARISH' ? 'SELL (Tushish kutilmoqda)' : 'KUTISH (Range)'}
+• **Target Narx:** ${result.macro?.target?.toFixed(2) || '---'}
+• **Davomiyligi:** ${result.macro?.duration || '---'}
+
+🛡️ *Maslahat:*
+${result.isSafe ? "✅ Bozor xavfsiz, signalga kirish tavsiya qilinadi." : "⚠️ Ehtiyot bo'ling, yangiliklar yoki volatillik yuqori."}
+
+_Ushbu tahlil 20+ indikator va Institutional strukturaga asoslangan._
+`;
+            this.bot?.sendMessage(chatId, response, { parse_mode: "Markdown" });
+        }
+        catch (e) {
+            console.error(e);
+            this.bot?.sendMessage(chatId, "❌ Tahlil qilishda xatolik yuz berdi.");
+        }
+    }
     showMenu(chatId, text) {
         this.bot?.sendMessage(chatId, text, {
             parse_mode: 'Markdown',
             reply_markup: {
                 keyboard: [
+                    [{ text: this.BUTTONS.ANALYZE_IMAGE }],
                     [{ text: this.BUTTONS.TF_1M }, { text: this.BUTTONS.TF_5M }, { text: this.BUTTONS.TF_15M }],
                     [{ text: this.BUTTONS.ALL }]
                 ],

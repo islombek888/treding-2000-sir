@@ -11,6 +11,18 @@ async function main() {
     const tvService = new TradingViewDataService();
     const alertService = AlertService.getInstance();
     const symbols = ['XAUUSD', 'EURUSD'];
+    // Wire up Image Analysis Callback
+    alertService.setAnalysisCallback(async (symbol) => {
+        console.log(`🖼️ Image Analysis requested for ${symbol}`);
+        // Ensure we have fresh data
+        const timeframes = ['1m', '5m', '15m', '1h'];
+        for (const tf of timeframes) {
+            const candles = await tvService.fetchCandles(symbol, tf, 250); // Get fresh look
+            candles.forEach(c => dataService.addCandle(symbol, tf, c));
+        }
+        // Run decision engine
+        return await DecisionEngine.decide(dataService, symbol);
+    });
     function getPipValue(symbol, diff) {
         if (symbol === 'XAUUSD') {
             return Math.round(Math.abs(diff) * 100);

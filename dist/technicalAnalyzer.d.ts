@@ -10,6 +10,7 @@ export declare class TechnicalAnalyzer {
     };
     static detectMarketPhase(candles: Candle[]): 'EXPANSION' | 'COMPRESSION' | 'NONE';
     static calculateATR(closes: number[], period?: number): number[];
+    static analyzeTrendConfluence(candlesMap: Map<string, Candle[]>): 'BULLISH' | 'BEARISH' | 'NEUTRAL';
     static analyzeMacroStructure(candlesMap: Map<string, Candle[]>): {
         trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
         target: number;

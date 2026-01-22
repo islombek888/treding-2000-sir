@@ -21,7 +21,11 @@ export declare class AlertService {
     private subscribers;
     private subscribersFilePath;
     private BUTTONS;
+    private analysisCallback;
+    private userStates;
+    setAnalysisCallback(callback: (symbol: string) => Promise<any>): void;
     private constructor();
+    private runAnalysis;
     private showMenu;
     static getInstance(): AlertService;
     private loadSubscribers;
