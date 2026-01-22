@@ -1,6 +1,7 @@
 import { MarketDataService, type Timeframe } from './marketDataService.js';
 import { AlertService } from './alertService.js';
 import { TradingViewDataService } from './tradingViewDataService.js';
+import { ChartRenderer } from './chartRenderer.js';
 import http from 'http';
 
 // Simple signal interfaces
@@ -12,6 +13,47 @@ interface SimpleSignal {
     takeProfit?: number[];
     confidence?: number;
     strategy?: string;
+}
+
+// Signal message creator function
+function createSignalMessage(signal: SimpleSignal, pips: number): string {
+    const action = signal.action;
+    const entry = signal.entry || 0;
+    const stopLoss = signal.stopLoss || 0;
+    const takeProfit = signal.takeProfit || [];
+    const confidence = signal.confidence || 0;
+    
+    let message = `🚀 **${action} SIGNAL** 🚀\n\n`;
+    message += `📊 **Signal Tafsilotlari:**\n`;
+    message += `• Symbol: ${signal.symbol}\n`;
+    message += `• Action: ${action}\n`;
+    message += `• Entry: ${entry}\n`;
+    message += `• Stop Loss: ${stopLoss}\n`;
+    message += `• Take Profit: ${takeProfit.join(', ')}\n`;
+    message += `• Confidence: ${confidence.toFixed(1)}%\n`;
+    message += `• Risk: ${pips} pips\n\n`;
+    
+    // Timing instructions
+    message += `⏰ **KIRISH VAQTI:**\n`;
+    message += `• **DARHOL** kirish tavsiya etiladi!\n`;
+    message += `• Signal 5 daqiqa ichida ishga tushishi mumkin\n\n`;
+    
+    message += `🎯 **CHIQISH VAQTI:**\n`;
+    if (takeProfit.length > 0) {
+        message += `• 1-chi TP ga yetganda: ${action === 'BUY' ? 'yarmini yoping' : 'yarmini yoping'}\n`;
+        message += `• 2-chi TP ga yetganda: **to'liq yoping**\n`;
+        message += `• Stop Loss ishlasa: **darhol yoping**\n\n`;
+    }
+    
+    message += `⚠️ **MUHIM ESLATMA:**\n`;
+    message += `• Risk: 1-2% dan oshmang\n`;
+    message += `• Signal faqat 5 daqiqa timeframe uchun\n`;
+    message += `• Qarama-qarshi signal kelsa: darhol yoping!\n\n`;
+    
+    message += `📈 **Kutilayotgan natija:** ${confidence > 85 ? 'Yuqori' : confidence > 75 ? 'O\'rta' : 'Past'}\n`;
+    message += `🎯 **Strategiya:** ${signal.strategy || 'Momentum Analysis'}`;
+    
+    return message;
 }
 
 // Simple signal management without complex imports
@@ -101,6 +143,7 @@ async function main() {
     const alertService = AlertService.getInstance();
     const decisionEngine = new SimpleDecisionEngine();
     const signalManager = new SimpleSignalManager();
+    const chartRenderer = new ChartRenderer();
     
     // FAQAT 5 DAQIQA SYMBOLS
     const symbols = ['XAUUSD', 'EURUSD'];
@@ -172,16 +215,38 @@ async function main() {
                     const pips = signal.stopLoss && signal.entry ? 
                         getPipValue(symbol, Math.abs(signal.entry - signal.stopLoss)) : 0;
                     
+                    // Chart yaratish
+                    let chartBuffer: Buffer | undefined;
+                    try {
+                        chartBuffer = await chartRenderer.render(
+                            symbol,
+                            m5Candles,
+                            {
+                                entry: signal.entry || 0,
+                                sl: signal.stopLoss || 0,
+                                tp: signal.takeProfit?.[0] || 0,
+                                direction: signal.action
+                            }
+                        );
+                        console.log(`📈 Chart created for ${symbol}`);
+                    } catch (error: any) {
+                        console.log(`⚠️ Chart creation failed: ${error?.message || error}`);
+                    }
+                    
+                    // Signal message with timing instructions
+                    const signalMessage = createSignalMessage(signal, pips);
+                    
                     await alertService.sendSignal({
                         symbol: signal.symbol,
                         direction: signal.action,
                         price: signal.entry || 0,
                         pips: pips,
                         confidence: signal.confidence || 0,
-                        reason: signal.strategy ? [signal.strategy] : [],
+                        reason: [signalMessage],
                         atr: 0,
                         strategy: signal.strategy || '',
-                        timeframe: '5m'
+                        timeframe: '5m',
+                        chart: chartBuffer
                     });
                     
                     console.log(`✅ ${symbol}: ${signal.action} signal sent successfully`);
