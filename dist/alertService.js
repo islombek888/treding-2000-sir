@@ -106,15 +106,6 @@ export class AlertService {
             console.error("❌ Subscribers save error:", error);
         }
     }
-    async sendSignal(signal) {
-        // ... existing logic ...
-        // (This will be called for OPEN signals)
-        const subscribers = Array.from(this.subscribers.entries());
-        // ...
-        // REPLICATING EXISTING LOGIC BUT CLEANER
-        // (I will keep the existing sendSignal as is but add new methods below)
-        // ...
-    }
     sendClosureAlert(symbol, direction, price, reason) {
         const message = `
 ⚠️ *DIQQAT: POSITSIYANI YOPING* ⚠️

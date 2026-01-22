@@ -7,13 +7,13 @@ export interface SignalData {
     reason: string[];
     atr: number;
     strategy: string;
-    chart?: Buffer;
+    chart?: Buffer | undefined;
     timeframe: string;
     macro?: {
         trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
         target: number;
         duration: string;
-    };
+    } | undefined;
 }
 export declare class AlertService {
     private static instance;
@@ -29,5 +29,6 @@ export declare class AlertService {
     sendClosureAlert(symbol: string, direction: string, price: number, reason: string): void;
     sendTakeProfitAlert(symbol: string, price: number, pips: number): void;
     private broadcastMessage;
+    sendSignal(signal: SignalData): Promise<void>;
 }
 //# sourceMappingURL=alertService.d.ts.map

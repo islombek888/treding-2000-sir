@@ -14,13 +14,13 @@ export interface SignalData {
     reason: string[];
     atr: number;
     strategy: string;
-    chart?: Buffer;
+    chart?: Buffer | undefined;
     timeframe: string;
     macro?: {
         trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
         target: number;
         duration: string;
-    };
+    } | undefined;
 }
 
 
