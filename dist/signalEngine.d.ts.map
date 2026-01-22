@@ -1,1 +1,1 @@
-{"version":3,"file":"signalEngine.d.ts","sourceRoot":"","sources":["../src/signalEngine.ts"],"names":[],"mappings":"AAAA,OAAO,EAAoB,KAAK,MAAM,EAAE,MAAM,uBAAuB,CAAC;AAKtE,qBAAa,YAAY;IACrB;;OAEG;IACH,MAAM,CAAC,OAAO,CAAC,OAAO,EAAE,MAAM,EAAE;IA+BhC,OAAO,CAAC,MAAM,CAAC,cAAc;CAWhC"}
+{"version":3,"file":"signalEngine.d.ts","sourceRoot":"","sources":["../src/signalEngine.ts"],"names":[],"mappings":"AAAA,OAAO,EAAoB,KAAK,MAAM,EAAE,MAAM,uBAAuB,CAAC;AAKtE,qBAAa,YAAY;IACrB;;OAEG;IACH,MAAM,CAAC,OAAO,CAAC,OAAO,EAAE,MAAM,EAAE;IAgChC,OAAO,CAAC,MAAM,CAAC,cAAc;CAWhC"}

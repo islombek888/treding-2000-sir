@@ -48,7 +48,8 @@ export class VisualAlertService {
                     confidence: signal.confidence,
                     reason: signal.reason,
                     atr: 2.5, // Default ATR for XAUUSD
-                    strategy: 'Visual Analysis Strategy'
+                    strategy: 'Visual Analysis Strategy',
+                    timeframe: '5m' // Default for visual engine
                 });
 
             } else {

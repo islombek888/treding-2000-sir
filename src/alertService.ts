@@ -15,6 +15,7 @@ export interface SignalData {
     atr: number;
     strategy: string;
     chart?: Buffer;
+    timeframe: string; // Added timeframe to signal data
 }
 
 export class AlertService {
@@ -27,8 +28,10 @@ export class AlertService {
     private BUTTONS = {
         STANDARD: '📊 50+ / 70 Pips',
         ULTRA: '🔥 Juda kuchli (200+ Pips)',
-        XAUUSD: '🏆 Faqat XAUUSD',
-        ALL: '🌐 Barcha signallar'
+        TF_1M: '⏱️ 1m Focus',
+        TF_5M: '⏱️ 5m Focus',
+        TF_15M: '⏱️ 15m Focus',
+        ALL: '🌐 Hamma turdagi'
     };
 
     private constructor() {
@@ -46,7 +49,7 @@ export class AlertService {
 
             this.bot.onText(/\/start/, (msg) => {
                 const chatId = msg.chat.id;
-                this.showMenu(chatId, `🚀 *Institutional Grade Botga xush kelibsiz!* \n\nPastdagi tugmalar orqali o'zingizga mos signal turini tanlang:`);
+                this.showMenu(chatId, `🚀 *Institutional Grade Botga xush kelibsiz!* \n\nPastdagi tugmalar orqali o'zingizga mos vaqt (timeframe) va signal turini tanlang:`);
                 if (!this.subscribers.has(chatId)) {
                     this.subscribers.set(chatId, 'ALL');
                     this.saveSubscribers();
@@ -57,18 +60,33 @@ export class AlertService {
                 const chatId = msg.chat.id;
                 const text = msg.text;
 
+                if (text === '/status') {
+                    const subscriberCount = this.subscribers.size;
+                    const uptime = Math.floor(process.uptime() / 60);
+                    const pref = this.subscribers.get(chatId) || 'ALL';
+                    const statusText = `🤖 *Bot holati:* Faol\n📈 *Sizning tanlovingiz:* ${pref}\n👥 *Jami obunachilar:* ${subscriberCount}\n🕒 *Ish vaqti:* ${uptime} minut\n🌐 *Ma'lumot manbasi:* Binance Real-time`;
+                    this.bot?.sendMessage(chatId, statusText, { parse_mode: 'Markdown' });
+                    return;
+                }
+
                 if (text === this.BUTTONS.STANDARD) {
                     this.subscribers.set(chatId, 'STANDARD');
                     this.bot?.sendMessage(chatId, "✅ Sozlandi: Endi sizga *50+ pips*lik barcha signallar yuboriladi.", { parse_mode: 'Markdown' });
                 } else if (text === this.BUTTONS.ULTRA) {
                     this.subscribers.set(chatId, 'ULTRA');
                     this.bot?.sendMessage(chatId, "✅ Sozlandi: Endi sizga faqat *200+ pips*lik o'ta kuchli signallar yuboriladi.", { parse_mode: 'Markdown' });
-                } else if (text === this.BUTTONS.XAUUSD) {
-                    this.subscribers.set(chatId, 'XAUUSD');
-                    this.bot?.sendMessage(chatId, "✅ Sozlandi: Endi sizga faqat *XAUUSD (Oltin)* signallari yuboriladi.", { parse_mode: 'Markdown' });
+                } else if (text === this.BUTTONS.TF_1M) {
+                    this.subscribers.set(chatId, '1m');
+                    this.bot?.sendMessage(chatId, "✅ Sozlandi: Faqat *1 minutlik* aniq va tezkor signallar yuboriladi.", { parse_mode: 'Markdown' });
+                } else if (text === this.BUTTONS.TF_5M) {
+                    this.subscribers.set(chatId, '5m');
+                    this.bot?.sendMessage(chatId, "✅ Sozlandi: Faqat *5 minutlik* standart signallar yuboriladi.", { parse_mode: 'Markdown' });
+                } else if (text === this.BUTTONS.TF_15M) {
+                    this.subscribers.set(chatId, '15m');
+                    this.bot?.sendMessage(chatId, "✅ Sozlandi: Faqat *15 minutlik* o'rta muddatli signallar yuboriladi.", { parse_mode: 'Markdown' });
                 } else if (text === this.BUTTONS.ALL) {
                     this.subscribers.set(chatId, 'ALL');
-                    this.bot?.sendMessage(chatId, "✅ Sozlandi: Hamma turdagi signallar yuboriladi.", { parse_mode: 'Markdown' });
+                    this.bot?.sendMessage(chatId, "✅ Sozlandi: Hamma turdagi va hamma vaqtdagi signallar yuboriladi.", { parse_mode: 'Markdown' });
                 }
                 this.saveSubscribers();
             });
@@ -80,8 +98,9 @@ export class AlertService {
             parse_mode: 'Markdown',
             reply_markup: {
                 keyboard: [
+                    [{ text: this.BUTTONS.TF_1M }, { text: this.BUTTONS.TF_5M }, { text: this.BUTTONS.TF_15M }],
                     [{ text: this.BUTTONS.STANDARD }, { text: this.BUTTONS.ULTRA }],
-                    [{ text: this.BUTTONS.XAUUSD }, { text: this.BUTTONS.ALL }]
+                    [{ text: this.BUTTONS.ALL }]
                 ],
                 resize_keyboard: true
             }
@@ -169,9 +188,20 @@ ${signal.reason.map(r => `• ${r === 'Institutional Trend (EMA Multi-TF)' ? 'Tr
 
         if (this.bot && this.subscribers.size > 0) {
             for (const [chatId, pref] of this.subscribers.entries()) {
-                // In institutional mode, all subscribers get all high-confidence signals
-                // The filtering logic is removed as per the instruction's description for XAUUSD-only institutional focus
-                // and the provided sendSignal method which sends to all subscribers.
+                // Filtering: Only send if it matches subscriber's timeframe preference or if preference is 'ALL'
+                const userPref = pref.toLowerCase();
+                const signalTF = signal.timeframe.toLowerCase();
+
+                // Special categories for STANDARD and ULTRA would need more logic, 
+                // but let's focus on the timeframe buttons requested.
+                // If userPref is one of the timeframes (1m, 5m, 15m), we filter.
+                const timeframes = ['1m', '5m', '15m', '1h'];
+                const isTfFiltering = timeframes.includes(userPref);
+
+                if (isTfFiltering && userPref !== signalTF) {
+                    continue;
+                }
+
                 try {
                     if (signal.chart) {
                         await this.bot.sendPhoto(chatId, signal.chart, {

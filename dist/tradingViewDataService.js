@@ -5,33 +5,43 @@ import {} from './marketDataService.js';
  * that match TradingView's OHLCV feeds.
  */
 export class TradingViewDataService {
-    apiKey;
-    constructor() {
-        this.apiKey = process.env.MARKET_DATA_API_KEY;
-    }
     /**
-     * Fetches the latest candles for a specific timeframe.
-     * In a production environment, this would call a provider like TwelveData,
-     * OANDA, or a Direct WebSocket feed.
+     * Fetches the latest candles for a specific timeframe using Binance.
      */
-    async fetchCandles(symbol, tf, limit = 100) {
-        // Placeholder for real API call. 
-        // Example implementation with fetch:
-        /*
-        const response = await fetch(`https://api.provider.com/v1/candles?symbol=${symbol}&interval=${tf}&limit=${limit}&apikey=${this.apiKey}`);
-        const data = await response.json();
-        return this.parseProviderData(data);
-        */
-        // For development/demonstration, we return high-fidelity simulated 
-        // data structures that mimic real market behavior 1:1.
-        return [];
+    async fetchCandles(symbol, tf, limit = 200) {
+        const resolutionMap = {
+            '1m': '1m',
+            '5m': '5m',
+            '15m': '15m',
+            '30m': '30m',
+            '1h': '1h'
+        };
+        const resolution = resolutionMap[tf] || '1m';
+        const providerSymbol = symbol === 'XAUUSD' ? 'PAXGUSDT' : 'EURUSDT';
+        try {
+            const url = `https://api.binance.com/api/v3/klines?symbol=${providerSymbol}&interval=${resolution}&limit=${limit}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            if (!Array.isArray(data)) {
+                console.error(`[DataService] ❌ Binance Error for ${symbol}:`, data);
+                return [];
+            }
+            return this.parseProviderData(data);
+        }
+        catch (error) {
+            console.error(`[DataService] ❌ Binance Fetch Error for ${symbol}:`, error);
+            return [];
+        }
     }
-    /**
-     * Parse provider-specific data into our internal Candle format.
-     */
     parseProviderData(data) {
-        // Implementation varies by provider
-        return [];
+        return data.map(k => ({
+            timestamp: Number(k[0]),
+            open: parseFloat(k[1]),
+            high: parseFloat(k[2]),
+            low: parseFloat(k[3]),
+            close: parseFloat(k[4]),
+            volume: parseFloat(k[5])
+        }));
     }
 }
 //# sourceMappingURL=tradingViewDataService.js.map

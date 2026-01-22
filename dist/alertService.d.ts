@@ -8,6 +8,7 @@ export interface SignalData {
     atr: number;
     strategy: string;
     chart?: Buffer;
+    timeframe: string;
 }
 export declare class AlertService {
     private static instance;

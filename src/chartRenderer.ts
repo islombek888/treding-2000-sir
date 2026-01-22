@@ -74,7 +74,7 @@ export class ChartRenderer {
         ctx.fillStyle = '#2962ff';
         ctx.fillText('INSTITUTIONAL PRECISION ENGINE', this.padding, this.padding - 45);
 
-        // 5. Professional Candles (Hollow/Solid)
+        // 5. Professional Candles (Solid and Precise)
         visibleCandles.forEach((c, i) => {
             const x = getX(i);
             const isUp = c.close >= c.open;
@@ -82,7 +82,7 @@ export class ChartRenderer {
 
             ctx.strokeStyle = color;
             ctx.fillStyle = color;
-            ctx.lineWidth = 1.5;
+            ctx.lineWidth = 1;
 
             // Wick
             ctx.beginPath();
@@ -93,21 +93,16 @@ export class ChartRenderer {
             // Body
             const bodyTop = getY(Math.max(c.open, c.close));
             const bodyBottom = getY(Math.min(c.open, c.close));
-            const bodyHeight = Math.max(1.5, bodyBottom - bodyTop);
+            const bodyHeight = Math.max(1, bodyBottom - bodyTop);
 
-            if (isUp) {
-                // Hollow candle for bullish
-                ctx.strokeRect(x - candleWidth * 0.3, bodyTop, candleWidth * 0.6, bodyHeight);
-            } else {
-                ctx.fillRect(x - candleWidth * 0.3, bodyTop, candleWidth * 0.6, bodyHeight);
-            }
+            ctx.fillRect(x - candleWidth * 0.35, bodyTop, candleWidth * 0.7, bodyHeight);
         });
 
-        // 6. Annotations
+        // 6. Annotations (BOS)
         if (annotations) {
             if (annotations.bos) {
                 const y = getY(annotations.bos.price);
-                ctx.setLineDash([6, 4]);
+                ctx.setLineDash([5, 5]);
                 ctx.strokeStyle = '#2962ff';
                 ctx.beginPath();
                 ctx.moveTo(this.padding, y);
@@ -116,67 +111,77 @@ export class ChartRenderer {
                 ctx.setLineDash([]);
 
                 ctx.fillStyle = '#2962ff';
-                ctx.font = 'bold 11px Arial';
-                ctx.fillText(`BREAK OF STRUCTURE (${annotations.bos.type})`, this.padding + 10, y - 5);
+                ctx.font = 'bold 12px Arial';
+                ctx.fillText(`BOS (${annotations.bos.type})`, this.padding + 10, y - 5);
             }
         }
 
-        // 7. Projected Move (TP/SL/Entry)
+        // 7. Projected Move (TP/SL/Entry) with Arrow
         if (projected) {
             const entryY = getY(projected.entry);
             const slY = getY(projected.sl);
             const tpY = getY(projected.tp);
             const isBuy = projected.direction === 'BUY';
+            const lastCandleX = getX(visibleCandles.length - 1);
 
             // Entry Line
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 1;
-            ctx.setLineDash([2, 2]);
+            ctx.setLineDash([3, 3]);
             ctx.beginPath();
             ctx.moveTo(this.padding, entryY);
             ctx.lineTo(this.width - this.priceColumnWidth, entryY);
             ctx.stroke();
             ctx.setLineDash([]);
 
-            // TP Label
-            ctx.fillStyle = 'rgba(8, 153, 129, 0.2)';
-            const tpRectY = isBuy ? tpY : entryY;
-            const tpRectH = isBuy ? entryY - tpY : tpY - entryY;
-            ctx.fillRect(this.padding, tpRectY, chartWidth, tpRectH);
+            // Fill Zones
+            ctx.fillStyle = isBuy ? 'rgba(8, 153, 129, 0.1)' : 'rgba(242, 54, 69, 0.1)';
+            ctx.fillRect(this.padding, isBuy ? tpY : entryY, chartWidth, Math.abs(tpY - entryY));
 
+            ctx.fillStyle = isBuy ? 'rgba(242, 54, 69, 0.1)' : 'rgba(8, 153, 129, 0.1)';
+            ctx.fillRect(this.padding, isBuy ? entryY : slY, chartWidth, Math.abs(slY - entryY));
+
+            // PROJECTION ARROW
+            ctx.strokeStyle = isBuy ? '#089981' : '#f23645';
+            ctx.lineWidth = 4;
+            this.drawArrow(ctx, lastCandleX, entryY, lastCandleX + 50, isBuy ? tpY : tpY);
+
+            // Labels
+            ctx.font = 'bold 14px Arial';
             ctx.fillStyle = '#089981';
-            ctx.font = 'bold 12px Arial';
-            ctx.fillText(`TARGET TP: ${projected.tp.toFixed(symbol === 'EURUSD' ? 5 : 2)}`, this.width - 220, tpY - 10);
-
-            // SL Label
-            ctx.fillStyle = 'rgba(242, 54, 69, 0.2)';
-            const slRectY = isBuy ? entryY : slY;
-            const slRectH = isBuy ? slY - entryY : entryY - slY;
-            ctx.fillRect(this.padding, slRectY, chartWidth, slRectH);
+            ctx.fillText(`🎯 TP: ${projected.tp.toFixed(symbol === 'EURUSD' ? 5 : 2)}`, this.width - 250, tpY + (isBuy ? -10 : 20));
 
             ctx.fillStyle = '#f23645';
-            ctx.fillText(`STOP LOSS: ${projected.sl.toFixed(symbol === 'EURUSD' ? 5 : 2)}`, this.width - 220, slY + 20);
+            ctx.fillText(`🛡️ SL: ${projected.sl.toFixed(symbol === 'EURUSD' ? 5 : 2)}`, this.width - 250, slY + (isBuy ? 20 : -10));
 
-            // Large Direction Indicator
-            ctx.font = 'bold 40px Arial';
+            // Large Direction Banner
             ctx.fillStyle = isBuy ? '#089981' : '#f23645';
-            ctx.fillText(isBuy ? '⬆ BUY' : '⬇ SELL', this.width - 200, this.padding + 60);
+            ctx.fillRect(this.width - 200, 20, 180, 50);
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 24px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(isBuy ? 'BUY' : 'SELL', this.width - 110, 55);
+            ctx.textAlign = 'left';
         }
 
         return canvas.toBuffer('image/png');
     }
 
     private drawArrow(ctx: CanvasRenderingContext2D, fromx: number, fromy: number, tox: number, toy: number) {
-        const headlen = 15;
+        const headlen = 20;
         const dx = tox - fromx;
         const dy = toy - fromy;
         const angle = Math.atan2(dy, dx);
         ctx.beginPath();
         ctx.moveTo(fromx, fromy);
         ctx.lineTo(tox, toy);
-        ctx.lineTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle - Math.PI / 6));
-        ctx.moveTo(tox, toy);
-        ctx.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
         ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(tox, toy);
+        ctx.lineTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle / 6));
+        ctx.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
+        ctx.closePath();
+        ctx.fill();
     }
 }
