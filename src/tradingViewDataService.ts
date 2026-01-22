@@ -7,6 +7,7 @@ import { type Candle, type Timeframe } from './marketDataService.js';
  */
 export class TradingViewDataService {
     private useSimulation = false;
+    private useBinance = true; // Flag to track if Binance is usable
     private simulationData: Map<string, Map<Timeframe, Candle[]>> = new Map();
 
     constructor() {
@@ -22,21 +23,26 @@ export class TradingViewDataService {
             return this.getSimulatedCandles(symbol, tf, limit);
         }
 
-        // Try primary provider (Binance)
-        const binanceData = await this.fetchFromBinance(symbol, tf, limit);
-        if (binanceData.length > 0) {
-            return binanceData;
+        // Try primary provider (Binance) ONLY if it hasn't been blocked
+        if (this.useBinance) {
+            const binanceData = await this.fetchFromBinance(symbol, tf, limit);
+            if (binanceData.length > 0) {
+                return binanceData;
+            }
         }
 
-        // Try alternative providers
+        // Try alternative providers (Yahoo Finance)
+        // If Binance failed (or was skipped), we try Yahoo immediately
         const yahooData = await this.fetchFromYahooFinance(symbol, tf, limit);
         if (yahooData.length > 0) {
             return yahooData;
         }
 
         // If all real providers fail, fall back to simulation
-        console.warn(`[DataService] ⚠️ All providers failed for ${symbol}, switching to simulation mode`);
-        this.useSimulation = true;
+        if (!this.useSimulation) {
+            console.warn(`[DataService] ⚠️ All providers failed for ${symbol}, switching to simulation mode.`);
+            this.useSimulation = true;
+        }
         return this.getSimulatedCandles(symbol, tf, limit);
     }
 
@@ -59,11 +65,17 @@ export class TradingViewDataService {
                     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
                 }
             });
-            
+
+            if (response.status === 451) {
+                console.warn(`[DataService] 🌍 Binance blocked in this region (HTTP 451). Switching to Yahoo Finance.`);
+                this.useBinance = false; // Permanently disable Binance for this session
+                return [];
+            }
+
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-            
+
             const data: any = await response.json();
 
             if (!Array.isArray(data)) {
@@ -92,33 +104,33 @@ export class TradingViewDataService {
                 '30m': '30m',
                 '1h': '1h'
             };
-            
+
             const interval = intervalMap[tf] || '1m';
-            
+
             // Yahoo Finance API (unofficial)
             const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSymbol}?interval=${interval}&range=${Math.ceil(limit / 60)}d`;
-            
+
             const response = await fetch(url, {
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
                 }
             });
-            
+
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
-            
+
             const data = await response.json() as any;
-            
+
             if (!data.chart?.result?.[0]?.timestamp) {
                 console.error(`[DataService] ❌ Yahoo Finance invalid data for ${symbol}`);
                 return [];
             }
-            
+
             const result = data.chart.result[0];
             const timestamps = result.timestamp;
             const ohlc = result.indicators.quote[0];
-            
+
             const candles: Candle[] = [];
             for (let i = 0; i < timestamps.length && i < limit; i++) {
                 if (ohlc.open[i] && ohlc.high[i] && ohlc.low[i] && ohlc.close[i]) {
@@ -132,7 +144,7 @@ export class TradingViewDataService {
                     });
                 }
             }
-            
+
             return candles;
         } catch (error: any) {
             console.error(`[DataService] ❌ Yahoo Finance Error for ${symbol}:`, error.message);
@@ -143,18 +155,18 @@ export class TradingViewDataService {
     private initializeSimulationData(): void {
         const symbols = ['XAUUSD', 'EURUSD'];
         const timeframes: Timeframe[] = ['1m', '5m', '15m', '1h'];
-        
+
         symbols.forEach(symbol => {
             const symbolMap = new Map<Timeframe, Candle[]>();
-            
+
             timeframes.forEach(tf => {
                 const candles = this.generateSimulatedData(symbol, tf, 300);
                 symbolMap.set(tf, candles);
             });
-            
+
             this.simulationData.set(symbol, symbolMap);
         });
-        
+
         console.log('[DataService] 📊 Simulation data initialized for fallback');
     }
 
@@ -162,34 +174,34 @@ export class TradingViewDataService {
         const candles: Candle[] = [];
         const basePrice = symbol === 'XAUUSD' ? 2050 : 1.08;
         const volatility = symbol === 'XAUUSD' ? 2.0 : 0.002;
-        
+
         let currentPrice = basePrice;
         const now = Date.now();
         const intervalMs = this.getTimeframeMs(tf);
-        
+
         // Create realistic market structure
         let trend = 0;
         let trendDuration = 0;
-        
+
         for (let i = 0; i < count; i++) {
             // Change trend periodically
             if (trendDuration <= 0) {
                 trend = (Math.random() - 0.5) * volatility * 0.5;
                 trendDuration = Math.floor(Math.random() * 50) + 20;
             }
-            
+
             // Generate price movement
             const noise = (Math.random() - 0.5) * volatility * 0.3;
             const move = trend + noise;
-            
+
             const open = currentPrice;
             currentPrice += move;
-            
+
             const high = Math.max(open, currentPrice) + Math.random() * volatility * 0.2;
             const low = Math.min(open, currentPrice) - Math.random() * volatility * 0.2;
             const close = currentPrice;
             const volume = Math.floor(Math.random() * 5000) + 1000;
-            
+
             candles.push({
                 timestamp: now - (count - i) * intervalMs,
                 open,
@@ -198,10 +210,10 @@ export class TradingViewDataService {
                 close,
                 volume
             });
-            
+
             trendDuration--;
         }
-        
+
         return candles;
     }
 
@@ -222,16 +234,16 @@ export class TradingViewDataService {
             console.error(`[DataService] ❌ No simulation data for ${symbol}`);
             return [];
         }
-        
+
         const tfData = symbolData.get(tf);
         if (!tfData) {
             console.error(`[DataService] ❌ No simulation data for ${symbol} ${tf}`);
             return [];
         }
-        
+
         // Return the latest candles with some variation
         const baseCandles = tfData.slice(-limit);
-        
+
         // Add small random variations to make it more realistic
         return baseCandles.map(candle => ({
             ...candle,
