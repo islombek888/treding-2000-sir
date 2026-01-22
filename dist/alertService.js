@@ -141,114 +141,49 @@ Sof Foyda: *+${pips} Pips*
     async sendSignal(signal) {
         const isBuy = signal.direction === 'BUY';
         const digits = signal.symbol === 'EURUSD' ? 5 : 2;
-        // Institutional Risk Assessment
-        let riskLevel = 'O\'RTA';
-        if (signal.confidence >= 93)
-            riskLevel = 'PAST';
-        else if (signal.confidence < 88)
-            riskLevel = 'YUQORI';
-        // Dynamic Time Estimation based on ATR (Volatility)
-        // High ATR (High Volume) -> Faster moves -> Shorter duration
-        // Low ATR (Low Volume) -> Slower moves -> Longer duration
-        let avgATR = 0.0001; // Default
-        if (signal.symbol === 'XAUUSD')
-            avgATR = 1.5; // Approx 1m avg
-        else if (signal.symbol === 'EURUSD')
-            avgATR = 0.00015;
-        const volatilityRatio = signal.atr / avgATR;
-        let speedFactor = 1.0;
-        if (volatilityRatio > 1.5)
-            speedFactor = 0.5; // Fast Market
-        else if (volatilityRatio < 0.8)
-            speedFactor = 1.5; // Slow Market
-        let minTime = Math.max(2, Math.round(5 * speedFactor));
-        let maxTime = Math.round(15 * speedFactor);
-        // Clean timeframe string
-        const tf = (signal.timeframe || '5m').replace(/[^a-z0-9]/gi, '').toLowerCase();
-        if (tf === '1m') {
-            minTime = Math.max(2, Math.round(3 * speedFactor));
-            maxTime = Math.round(10 * speedFactor);
-        }
-        else if (tf === '15m') {
-            minTime = Math.round(30 * speedFactor);
-            maxTime = Math.round(90 * speedFactor);
-        }
-        else if (tf === '1h') {
-            minTime = 60;
-            maxTime = 240;
-        }
         // Dynamic SL/TP calculation (Same as chart)
+        // If SL/TP not provided in signal, calculate standard
         const slMult = 1.6;
-        const tpMult = 2.4;
+        const rewardRisk = 2.0;
         const sl = isBuy ? signal.price - (signal.atr * slMult) : signal.price + (signal.atr * slMult);
-        const tp = isBuy ? signal.price + (signal.atr * tpMult) : signal.price - (signal.atr * tpMult);
-        // Visual Signal Card
-        const cardHeader = isBuy ? '🟩 INSTITUTIONAL BUY 🟩' : '🟥 INSTITUTIONAL SELL 🟥';
-        const cardBody = `
-        ╔═════════════════════════════╗
-        ║   ${cardHeader}   ║
-        ╠═════════════════════════════╣
-        ║ Asset:  ${signal.symbol.padEnd(20)}║
-        ║ Entry:  ${signal.price.toFixed(digits).padEnd(20)}║
-        ║ SL (🛡️): ${sl.toFixed(digits).padEnd(20)}║
-        ║ TP (🎯): ${tp.toFixed(digits).padEnd(20)}║
-        ╚═════════════════════════════╝
-        `;
-        let timeLabel = "Kutilayotgan vaqt";
-        if (tf === '1m')
-            timeLabel = "⚡ Tezkor Natija (10 daqiqa ichida)";
-        // Macro formatting
-        let macroSection = "";
-        if (signal.macro && signal.macro.trend !== 'NEUTRAL') {
-            const trendIcon = signal.macro.trend === 'BULLISH' ? '🟢' : '🔴';
-            macroSection = `
-🌍 *Global Trend (1H):* ${trendIcon} ${signal.macro.trend}
-🎯 *Asosiy Target:* ${signal.macro.target.toFixed(digits)}
-⏳ *Bashorat:* ${signal.macro.duration}
-`;
-        }
+        // TP Levels - STRICT MASTER PROMPT REQUIREMENT
+        const risk = Math.abs(signal.price - sl);
+        const tp1 = isBuy ? signal.price + risk : signal.price - risk; // 1:1
+        const tp2 = isBuy ? signal.price + (risk * 2) : signal.price - (risk * 2); // 1:2
+        const tp3 = isBuy ? signal.price + (risk * 3) : signal.price - (risk * 3); // 1:3
+        // Visual Signal Card - STRICT FORMAT
         const message = `
-🏛️ *${signal.symbol} Institutional Tahlil* 🏛️
+SYMBOL: ${signal.symbol}
+TIMEFRAME: ${signal.timeframe}
+DIRECTION: ${signal.direction}
+ENTRY: ${signal.price.toFixed(digits)}
+STOP LOSS: ${sl.toFixed(digits)}
+TAKE PROFIT: ${tp1.toFixed(digits)}, ${tp2.toFixed(digits)}, ${tp3.toFixed(digits)}
+EXPECTED MOVE: ${signal.pips} pips
+CONFIDENCE: ${signal.confidence}%
+STRATEGY NAME: ${signal.strategy}
 
-\`\`\`
-${cardBody.trim()}
-\`\`\`
-
-📊 *Strategiya:* ${signal.strategy}
-📊 *Kutilayotgan harakat:* +${signal.pips} Pips
-🛡️ *Ishonch:* ${signal.confidence}%
-⚖️ *Xavf darajasi:* ${riskLevel}
-🕒 *${timeLabel}:* ${minTime}-${maxTime} minut
-${macroSection}
-🧠 *Asos:* 
-${signal.reason.map(r => `• ${r === 'Institutional Trend (EMA Multi-TF)' ? 'Trend yo\'nalishi (M5/M15)' :
-            r === 'Break of Structure (BOS)' ? 'Struktura buzilishi (BOS)' :
-                r === 'Volatility Expansion (ATR)' ? 'Volatillikning ortishi' : r}`).join('\n')}
-
-📍 *Harakat:* Joriy narxdan kiring. 20-siklli tizim tomonidan tasdiqlangan.
+⚠️ *Institutional Note:* High volatility detected. Immediate execution recommended.
         `;
         if (this.bot && this.subscribers.size > 0) {
             for (const [chatId, pref] of this.subscribers.entries()) {
-                // Filtering: Only send if it matches subscriber's timeframe preference or if preference is 'ALL'
                 const userPref = pref.toLowerCase();
                 const signalTF = signal.timeframe.toLowerCase();
-                // Special categories for STANDARD and ULTRA would need more logic, 
-                // but let's focus on the timeframe buttons requested.
-                // If userPref is one of the timeframes (1m, 5m, 15m), we filter.
                 const timeframes = ['1m', '5m', '15m', '1h'];
                 const isTfFiltering = timeframes.includes(userPref);
                 if (isTfFiltering && userPref !== signalTF) {
                     continue;
                 }
                 try {
+                    // Always send chart if available
                     if (signal.chart) {
                         await this.bot.sendPhoto(chatId, signal.chart, {
                             caption: message,
-                            parse_mode: 'Markdown'
+                            parse_mode: 'Markdown' // Can use Markdown for bolding if needed, but plain text requested mainly
                         });
                     }
                     else {
-                        await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+                        await this.bot.sendMessage(chatId, message);
                     }
                 }
                 catch (error) {

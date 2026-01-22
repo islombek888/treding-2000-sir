@@ -83,7 +83,7 @@ async function main() {
                     }
 
                     // Run the decision engine
-                    const decision = await DecisionEngine.decide(dataService, symbol);
+                    const decision = await DecisionEngine.decide(dataService, symbol, tf);
 
                     if (decision) {
                         const candles = dataService.getCandles(symbol, tf);
